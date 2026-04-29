@@ -1934,12 +1934,45 @@ HRESULT m_IDirectDrawSurfaceX::GetFlipStatus(DWORD dwFlags, bool CheckOnly)
 
 	if (Config.Dd7to9)
 	{
+		// Handle games that call this from the backbuffer
+		if ((surfaceDesc2.ddsCaps.dwCaps & (DDSCAPS_FLIP | DDSCAPS_BACKBUFFER)) == (DDSCAPS_FLIP | DDSCAPS_BACKBUFFER))
+		{
+			m_IDirectDrawSurfaceX* lpTargetSurface = this;
+			do {
+				DWORD dwCaps = 0;
+
+				// Loop through each surface
+				for (auto& it : lpTargetSurface->AttachedSurfaceMap)
+				{
+					dwCaps = it.second.pSurface->GetSurfaceCaps().dwCaps;
+					if (dwCaps & DDSCAPS_FLIP)
+					{
+						lpTargetSurface = it.second.pSurface;
+						break;
+					}
+				}
+
+				// Stop looping when at end of loop
+				if (!lpTargetSurface || lpTargetSurface == this)
+				{
+					LOG_LIMIT(100, __FUNCTION__ << " Error: Could not find front buffer!");
+					return DDERR_INVALIDSURFACETYPE;
+				}
+
+				// Stop looping when frontbuffer is found
+				if (dwCaps & DDSCAPS_FRONTBUFFER)
+				{
+					return lpTargetSurface->GetFlipStatus(dwFlags, CheckOnly);
+				}
+			} while (true);
+		}
+
 		// Flip can be called only for a surface that has the DDSCAPS_FLIP and DDSCAPS_FRONTBUFFER capabilities
 		if (!IsFlipSurface())
 		{
 			if (!CheckOnly)
 			{
-				LOG_LIMIT(100, __FUNCTION__ << " Error: This surface cannot be flipped");
+				LOG_LIMIT(100, __FUNCTION__ << " Error: This surface cannot be flipped: " << surfaceDesc2.ddsCaps);
 			}
 			return DDERR_INVALIDSURFACETYPE;
 		}
@@ -8414,7 +8447,6 @@ HRESULT m_IDirectDrawSurfaceX::GetFlipList(std::vector<m_IDirectDrawSurfaceX*>& 
 		m_IDirectDrawSurfaceX* lpTargetSurface = this;
 		do {
 			DWORD dwCaps = 0;
-			m_IDirectDrawSurfaceX* lpNewTargetSurface = nullptr;
 
 			// Loop through each surface
 			for (auto& it : lpTargetSurface->AttachedSurfaceMap)
@@ -8422,11 +8454,10 @@ HRESULT m_IDirectDrawSurfaceX::GetFlipList(std::vector<m_IDirectDrawSurfaceX*>& 
 				dwCaps = it.second.pSurface->GetSurfaceCaps().dwCaps;
 				if (dwCaps & DDSCAPS_FLIP)
 				{
-					lpNewTargetSurface = it.second.pSurface;
+					lpTargetSurface = it.second.pSurface;
 					break;
 				}
 			}
-			lpTargetSurface = lpNewTargetSurface;
 
 			// Stop looping when frontbuffer is found
 			if (!lpTargetSurface || lpTargetSurface == this || dwCaps & DDSCAPS_FRONTBUFFER)

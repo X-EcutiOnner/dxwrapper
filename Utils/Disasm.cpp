@@ -67,79 +67,6 @@ static void WriteMiniDump(EXCEPTION_POINTERS* ExceptionInfo)
 		return;
 	}
 
-	// Log error
-	__try
-	{
-		if (ExceptionInfo &&
-			ExceptionInfo->ExceptionRecord &&
-			ExceptionInfo->ExceptionRecord->ExceptionAddress)
-		{
-			auto rec = ExceptionInfo->ExceptionRecord;
-			auto ctx = ExceptionInfo->ContextRecord;
-
-			DWORD rw = 0;
-			void* badAddr = nullptr;
-
-			if (rec->ExceptionCode == EXCEPTION_ACCESS_VIOLATION &&
-				rec->NumberParameters >= 2)
-			{
-				rw = rec->ExceptionInformation[0];
-				badAddr = (void*)rec->ExceptionInformation[1];
-			}
-
-			char moduleName[MAX_PATH] = {};
-			__try
-			{
-				GetModuleFromAddress(rec->ExceptionAddress, moduleName, MAX_PATH);
-			}
-			__except (EXCEPTION_EXECUTE_HANDLER)
-			{
-				moduleName[0] = '\0';
-			}
-
-			if (!moduleName[0])
-			{
-				strcpy_s(moduleName, "unknown");
-			}
-
-			if (ctx)
-			{
-				Logging::LogFormat(
-					"Attempting to create dump file for: "
-					"code=0x%08X flags=0x%08X addr=%p rw=%d bad=%p module=%s "
-					"Registers: EIP=0x%08X ECX=0x%08X EAX=0x%08X",
-					rec->ExceptionCode,
-					rec->ExceptionFlags,
-					rec->ExceptionAddress,
-					rw,
-					badAddr,
-					moduleName,
-					ctx->Eip,
-					ctx->Ecx,
-					ctx->Eax
-				);
-			}
-			else
-			{
-				Logging::LogFormat(
-					"Attempting to create dump file for: "
-					"code=0x%08X flags=0x%08X addr=%p rw=%d bad=%p module=%s",
-					rec->ExceptionCode,
-					rec->ExceptionFlags,
-					rec->ExceptionAddress,
-					rw,
-					badAddr,
-					moduleName
-				);
-			}
-		}
-		else
-		{
-			Logging::LogFormat("Attempting to create dump file!");
-		}
-	}
-	__except (EXCEPTION_EXECUTE_HANDLER) {}
-
 	// Get dump path
 	char dumpPath[MAX_PATH] = {};
 	{
@@ -175,6 +102,13 @@ static void WriteMiniDump(EXCEPTION_POINTERS* ExceptionInfo)
 
 		strcat_s(dumpPath, filename);
 	}
+
+	// Log event
+	__try
+	{
+		Logging::LogFormat("Attempting to create dump file: %s", dumpPath);
+	}
+	__except (EXCEPTION_EXECUTE_HANDLER) {}
 
 	HANDLE hFile = CreateFileA(dumpPath, GENERIC_WRITE, 0, NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
 
@@ -292,17 +226,105 @@ LONG WINAPI Utils::Vectored_Exception_Handler(EXCEPTION_POINTERS* ExceptionInfo)
 		}
 		break;
 
-#ifdef CREATE_MINIDUMP
 		case EXCEPTION_ACCESS_VIOLATION:
+		case EXCEPTION_ILLEGAL_INSTRUCTION:
+		case EXCEPTION_IN_PAGE_ERROR:
+		case EXCEPTION_STACK_OVERFLOW:
 		{
+			// Log error
+			__try
+			{
+				auto rec = ExceptionInfo->ExceptionRecord;
+				auto ctx = ExceptionInfo->ContextRecord;
+
+				DWORD rw = 0;
+				void* badAddr = nullptr;
+
+				if (rec->ExceptionCode == EXCEPTION_ACCESS_VIOLATION &&
+					rec->NumberParameters >= 2)
+				{
+					rw = rec->ExceptionInformation[0];
+					badAddr = (void*)rec->ExceptionInformation[1];
+				}
+
+				char moduleName[MAX_PATH] = {};
+				__try
+				{
+					GetModuleFromAddress(rec->ExceptionAddress, moduleName, MAX_PATH);
+				}
+				__except (EXCEPTION_EXECUTE_HANDLER)
+				{
+					moduleName[0] = '\0';
+				}
+
+				if (!moduleName[0])
+				{
+					strcpy_s(moduleName, "unknown");
+				}
+
+				if (ctx)
+				{
+					Logging::LogFormat(
+						"Error occurred in the application: "
+						"code=0x%08X flags=0x%08X addr=%p rw=%d bad=%p module=%s "
+						"Registers: EIP=0x%08X ECX=0x%08X EAX=0x%08X",
+						rec->ExceptionCode,
+						rec->ExceptionFlags,
+						rec->ExceptionAddress,
+						rw,
+						badAddr,
+						moduleName,
+						ctx->Eip,
+						ctx->Ecx,
+						ctx->Eax
+					);
+				}
+				else
+				{
+					Logging::LogFormat(
+						"Error occurred in the application: "
+						"code=0x%08X flags=0x%08X addr=%p rw=%d bad=%p module=%s",
+						rec->ExceptionCode,
+						rec->ExceptionFlags,
+						rec->ExceptionAddress,
+						rw,
+						badAddr,
+						moduleName
+					);
+				}
+			}
+			__except (EXCEPTION_EXECUTE_HANDLER) {}
+
+#ifdef CREATE_MINIDUMP
 			static LONG runonce = 1;
 			if (InterlockedExchange(&runonce, 0))
 			{
 				WriteMiniDump(ExceptionInfo);
 			}
+#endif // CREATE_MINIDUMP
 		}
 		break;
-#endif // CREATE_MINIDUMP
+
+		default:
+		{
+			char moduleName[MAX_PATH] = {};
+			__try
+			{
+				GetModuleFromAddress(ExceptionInfo->ExceptionRecord->ExceptionAddress, moduleName, MAX_PATH);
+			}
+			__except (EXCEPTION_EXECUTE_HANDLER)
+			{
+				moduleName[0] = '\0';
+			}
+
+			if (!moduleName[0])
+			{
+				strcpy_s(moduleName, "unknown");
+			}
+
+			Logging::LogFormat("Exception: code=0x%08X at %p in %s", code, ExceptionInfo->ExceptionRecord->ExceptionAddress, moduleName);
+		}
+		break;
 		}
 	}
 	__except (EXCEPTION_EXECUTE_HANDLER)

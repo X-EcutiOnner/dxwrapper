@@ -32,7 +32,9 @@
 #include "External\Hooking\Hook.h"
 #include "Logging\Logging.h"
 
+#ifndef CREATE_MINIDUMP
 //#define CREATE_MINIDUMP
+#endif
 
 namespace Utils
 {

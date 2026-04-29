@@ -3308,6 +3308,12 @@ void m_IDirectDrawX::AfterDeviceCreation()
 	IsDeviceVerticesSet = false;
 	EnableWaitVsync = false;
 
+	// Get updated SurfaceDisplay after creating device to update any surface that needs it
+	{
+		DWORD Width = 0, Height = 0, BPP = 0, RefreshRate = 0;
+		GetSurfaceDisplay(Width, Height, BPP, RefreshRate);
+	}
+
 	// Copy GDI data to back buffer
 	if (CopyGDISurface && PrimarySurface && !presParams.Windowed)
 	{

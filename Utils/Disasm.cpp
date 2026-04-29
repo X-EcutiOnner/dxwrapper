@@ -1,5 +1,5 @@
 /**
-* Copyright (C) 2025 Elisha Riedlinger
+* Copyright (C) 2026 Elisha Riedlinger
 *
 * This software is  provided 'as-is', without any express  or implied  warranty. In no event will the
 * authors be held liable for any damages arising from the use of this software.
@@ -16,14 +16,37 @@
 
 #define WIN32_LEAN_AND_MEAN
 #include <Windows.h>
+
+#if (_WIN32_WINNT >= 0x0502)
+#include <dbghelp.h>
+#else
+#pragma warning(push)
+#pragma warning(disable : 4091)
+#include <dbghelp.h>
+#pragma warning(pop)
+#endif
+
 #include "Utils.h"
+#include "Dllmain\Dllmain.h"
 #include "External\Hooking\Disasm.h"
 #include "External\Hooking\Hook.h"
 #include "Logging\Logging.h"
 
+//#define CREATE_MINIDUMP
+
 namespace Utils
 {
 	static LPTOP_LEVEL_EXCEPTION_FILTER g_previousFilter = nullptr;
+
+	typedef BOOL(WINAPI* MiniDumpWriteDump_t)(
+		HANDLE,
+		DWORD,
+		HANDLE,
+		MINIDUMP_TYPE,
+		const PMINIDUMP_EXCEPTION_INFORMATION,
+		const PMINIDUMP_USER_STREAM_INFORMATION,
+		const PMINIDUMP_CALLBACK_INFORMATION
+		);
 
 	// Forward declarations
 	LONG WINAPI CustomUnhandledExceptionFilter(LPEXCEPTION_POINTERS exceptionInfo);
@@ -31,35 +54,258 @@ namespace Utils
 	void RemoveCustomExceptionHandler();
 }
 
+static void WriteMiniDump(EXCEPTION_POINTERS* ExceptionInfo)
+{
+	using namespace Utils;
+
+	// Recursion guard, call once per-process
+	static LONG inDump = 0;
+	if (InterlockedExchange(&inDump, 1))
+	{
+		return;
+	}
+
+	// Log error
+	__try
+	{
+		if (ExceptionInfo &&
+			ExceptionInfo->ExceptionRecord &&
+			ExceptionInfo->ExceptionRecord->ExceptionAddress)
+		{
+			auto rec = ExceptionInfo->ExceptionRecord;
+			auto ctx = ExceptionInfo->ContextRecord;
+
+			DWORD rw = 0;
+			void* badAddr = nullptr;
+
+			if (rec->ExceptionCode == EXCEPTION_ACCESS_VIOLATION &&
+				rec->NumberParameters >= 2)
+			{
+				rw = rec->ExceptionInformation[0];
+				badAddr = (void*)rec->ExceptionInformation[1];
+			}
+
+			char moduleName[MAX_PATH] = {};
+			__try
+			{
+				GetModuleFromAddress(rec->ExceptionAddress, moduleName, MAX_PATH);
+			}
+			__except (EXCEPTION_EXECUTE_HANDLER)
+			{
+				moduleName[0] = '\0';
+			}
+
+			if (!moduleName[0])
+			{
+				strcpy_s(moduleName, "unknown");
+			}
+
+			if (ctx)
+			{
+				Logging::LogFormat(
+					"Attempting to create dump file for: "
+					"code=0x%08X flags=0x%08X addr=%p rw=%d bad=%p module=%s "
+					"Registers: EIP=0x%08X ECX=0x%08X EAX=0x%08X",
+					rec->ExceptionCode,
+					rec->ExceptionFlags,
+					rec->ExceptionAddress,
+					rw,
+					badAddr,
+					moduleName,
+					ctx->Eip,
+					ctx->Ecx,
+					ctx->Eax
+				);
+			}
+			else
+			{
+				Logging::LogFormat(
+					"Attempting to create dump file for: "
+					"code=0x%08X flags=0x%08X addr=%p rw=%d bad=%p module=%s",
+					rec->ExceptionCode,
+					rec->ExceptionFlags,
+					rec->ExceptionAddress,
+					rw,
+					badAddr,
+					moduleName
+				);
+			}
+		}
+		else
+		{
+			Logging::LogFormat("Attempting to create dump file!");
+		}
+	}
+	__except (EXCEPTION_EXECUTE_HANDLER) {}
+
+	// Get dump path
+	char dumpPath[MAX_PATH] = {};
+	{
+		char modulePath[MAX_PATH] = {};
+
+		// Get the path of dxwrapper.dll
+		DWORD len = GetModuleFileNameA(hModule_dll, modulePath, MAX_PATH);
+		if (len == 0 || len == MAX_PATH)
+		{
+			modulePath[0] = '\0';
+		}
+		// Strip filename to get directory
+		else
+		{
+			char* lastSlash = strrchr(modulePath, '\\');
+			if (lastSlash)
+			{
+				*(lastSlash + 1) = '\0'; // keep trailing slash
+			}
+		}
+
+		// Build full dump path
+		strcpy_s(dumpPath, modulePath);
+
+		SYSTEMTIME st;
+		GetLocalTime(&st);
+
+		char filename[64];
+		sprintf_s(filename, "dxwrapper-crash-%04d%02d%02d-%02d%02d%02d-%03d.dmp",
+			st.wYear, st.wMonth, st.wDay,
+			st.wHour, st.wMinute, st.wSecond,
+			st.wMilliseconds);
+
+		strcat_s(dumpPath, filename);
+	}
+
+	HANDLE hFile = CreateFileA(dumpPath, GENERIC_WRITE, 0, NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
+
+	if (hFile == INVALID_HANDLE_VALUE)
+	{
+		return;
+	}
+
+	// Dynamically load dbghelp.dll
+	HMODULE hDbgHelp = nullptr;
+	{
+		char DlgHelpPath[MAX_PATH] = {};
+
+		UINT len = GetSystemDirectoryA(DlgHelpPath, MAX_PATH);
+		if (len > 0 && len < MAX_PATH - 20)
+		{
+			strcat_s(DlgHelpPath, "\\dbghelp.dll");
+		}
+		else
+		{
+			strcpy_s(DlgHelpPath, "dbghelp.dll");
+		}
+
+		hDbgHelp = LoadLibraryA(DlgHelpPath);
+	}
+	if (!hDbgHelp)
+	{
+		CloseHandle(hFile);
+		return;
+	}
+
+	MiniDumpWriteDump_t pMiniDumpWriteDump = (MiniDumpWriteDump_t)GetProcAddress(hDbgHelp, "MiniDumpWriteDump");
+
+	if (pMiniDumpWriteDump)
+	{
+		MINIDUMP_EXCEPTION_INFORMATION mei = {};
+		mei.ThreadId = GetCurrentThreadId();
+		mei.ExceptionPointers = ExceptionInfo;
+		mei.ClientPointers = FALSE;
+
+		pMiniDumpWriteDump(
+			GetCurrentProcess(),
+			GetCurrentProcessId(),
+			hFile,
+			MiniDumpWithFullMemory,
+			&mei,
+			NULL,
+			NULL
+		);
+	}
+
+	FreeLibrary(hDbgHelp);
+	CloseHandle(hFile);
+}
+
 // Your existing exception handler function
 LONG WINAPI Utils::Vectored_Exception_Handler(EXCEPTION_POINTERS* ExceptionInfo)
 {
-	if (ExceptionInfo &&
-		ExceptionInfo->ContextRecord &&
-		ExceptionInfo->ExceptionRecord &&
-		ExceptionInfo->ExceptionRecord->ExceptionAddress &&
-		ExceptionInfo->ExceptionRecord->ExceptionCode == STATUS_PRIVILEGED_INSTRUCTION)
+	__try
 	{
-		size_t size = Disasm::getInstructionLength(ExceptionInfo->ExceptionRecord->ExceptionAddress);
-
-		if (size)
+		if (!ExceptionInfo || !ExceptionInfo->ExceptionRecord)
 		{
-			static DWORD count = 0;
-			if (count++ < 10)
-			{
-				char moduleName[MAX_PATH];
-				GetModuleFromAddress(ExceptionInfo->ExceptionRecord->ExceptionAddress, moduleName, MAX_PATH);
+			return EXCEPTION_CONTINUE_SEARCH;
+		}
 
-				Logging::Log() << "Skipping exception:" <<
-					" code=" << Logging::hex(ExceptionInfo->ExceptionRecord->ExceptionCode) <<
-					" flags=" << Logging::hex(ExceptionInfo->ExceptionRecord->ExceptionFlags) <<
-					" addr=" << ExceptionInfo->ExceptionRecord->ExceptionAddress <<
-					" module=" << moduleName;
+		DWORD code = ExceptionInfo->ExceptionRecord->ExceptionCode;
+
+		switch (code)
+		{
+		case STATUS_PRIVILEGED_INSTRUCTION:
+		{
+			size_t size = Disasm::getInstructionLength(ExceptionInfo->ExceptionRecord->ExceptionAddress);
+
+			if (!size || size > 15)
+			{
+				return EXCEPTION_CONTINUE_SEARCH;
 			}
 
-			ExceptionInfo->ContextRecord->Eip += size;
-			return EXCEPTION_CONTINUE_EXECUTION;
+			if (ExceptionInfo->ContextRecord)
+			{
+				static DWORD count = 0;
+				if (count++ < 10)
+				{
+					__try
+					{
+						auto rec = ExceptionInfo->ExceptionRecord;
+						auto ctx = ExceptionInfo->ContextRecord;
+
+						char moduleName[MAX_PATH] = {};
+						__try
+						{
+							GetModuleFromAddress(rec->ExceptionAddress, moduleName, MAX_PATH);
+						}
+						__except (EXCEPTION_EXECUTE_HANDLER)
+						{
+							moduleName[0] = '\0';
+						}
+
+						Logging::LogFormat(
+							"Skipping PRIVILEGED INSTRUCTION: addr=%p module=%s "
+							"Registers: EIP=0x%08X ECX=0x%08X EAX=0x%08X",
+							rec->ExceptionAddress,
+							moduleName,
+							ctx->Eip,
+							ctx->Ecx,
+							ctx->Eax
+						);
+					}
+					__except (EXCEPTION_EXECUTE_HANDLER) {}
+				}
+
+				ExceptionInfo->ContextRecord->Eip += size;
+				return EXCEPTION_CONTINUE_EXECUTION;
+			}
 		}
+		break;
+
+#ifdef CREATE_MINIDUMP
+		case EXCEPTION_ACCESS_VIOLATION:
+		{
+			static LONG runonce = 1;
+			if (InterlockedExchange(&runonce, 0))
+			{
+				WriteMiniDump(ExceptionInfo);
+			}
+		}
+		break;
+#endif // CREATE_MINIDUMP
+		}
+	}
+	__except (EXCEPTION_EXECUTE_HANDLER)
+	{
+		return EXCEPTION_CONTINUE_SEARCH;
 	}
 
 	return EXCEPTION_CONTINUE_SEARCH;

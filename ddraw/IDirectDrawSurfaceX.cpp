@@ -4625,7 +4625,8 @@ HRESULT m_IDirectDrawSurfaceX::CreateD9Surface()
 				ddrawParent->GetMultiSampleTypeQuality(surface.MultiSampleType, surface.MultiSampleQuality);
 
 				// Determine if lockable
-				BOOL IsLockable = !surface.MultiSampleType && !Config.DdrawUseShadowSurface && !(surfaceDesc2.ddsCaps.dwCaps2 & DDSCAPS2_NOTUSERLOCKABLE);
+				surface.IsLockable = !surface.MultiSampleType && !Config.DdrawUseShadowSurface && !(surfaceDesc2.ddsCaps.dwCaps2 & DDSCAPS2_NOTUSERLOCKABLE);
+				BOOL IsLockable = surface.IsLockable;
 
 				HRESULT hr_rt = (*d3d9Device)->CreateRenderTarget(surface.Width, surface.Height, Format, surface.MultiSampleType, surface.MultiSampleQuality, IsLockable, &surface.Surface, nullptr);
 

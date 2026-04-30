@@ -435,7 +435,7 @@ LRESULT CALLBACK WndProc::Handler(HWND hWnd, UINT Msg, WPARAM wParam, LPARAM lPa
 			static WPARAM IsActive = 0xFFFF;
 			const bool IsDuplicateMessage = (IsActive == wParam);
 
-			if (IsDuplicateMessage || (pDataStruct->IsExclusiveMode && pDataStruct->DirectXVersion >= 4))
+			if (IsDuplicateMessage || (wParam != FALSE && pDataStruct->IsExclusiveMode && pDataStruct->DirectXVersion >= 4))
 			{
 				LOG_LIMIT(3, __FUNCTION__ << " Warning: filtering " << (IsDuplicateMessage ? "duplicate " : "") << "WM_ACTIVATEAPP: " << wParam);
 				return NULL;

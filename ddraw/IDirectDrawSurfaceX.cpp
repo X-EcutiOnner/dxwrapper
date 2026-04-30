@@ -6763,9 +6763,9 @@ HRESULT m_IDirectDrawSurfaceX::ColorFill(RECT* pRect, D3DCOLOR dwFillColor, DWOR
 	// Use GPU ColorFill
 	if (((surface.Usage & D3DUSAGE_RENDERTARGET) || surface.Type == D3DTYPE_OFFPLAINSURFACE) && CanUseRenderTargetSurface() && surface.Pool == D3DPOOL_DEFAULT)
 	{
-		ScopedGetMipMapContext Dest(this, MipMapLevel);
-
 		PrepareRenderTarget();
+
+		ScopedGetMipMapContext Dest(this, MipMapLevel);
 
 		if (Dest.GetSurface())
 		{
@@ -7227,11 +7227,11 @@ HRESULT m_IDirectDrawSurfaceX::CopySurface(m_IDirectDrawSurfaceX* pSourceSurface
 			(!pSourceSurface->IsPalette() && !IsPalette()) &&
 			!IsMirrorLeftRight && !IsMirrorUpDown && !IsColorKey)
 		{
-			ScopedGetMipMapContext Src(pSourceSurface, SrcMipMapLevel);
-			ScopedGetMipMapContext Dest(this, MipMapLevel);
-
 			pSourceSurface->PrepareRenderTarget();
 			PrepareRenderTarget();
+
+			ScopedGetMipMapContext Src(pSourceSurface, SrcMipMapLevel);
+			ScopedGetMipMapContext Dest(this, MipMapLevel);
 
 			if (Src.GetSurface() && Dest.GetSurface())
 			{
@@ -7311,16 +7311,16 @@ HRESULT m_IDirectDrawSurfaceX::CopySurface(m_IDirectDrawSurfaceX* pSourceSurface
 		// Use UpdateSurface for copying system memory to video memory
 		if (!IsUsingEmulation() && CanUseRenderTargetSurface() && surface.Pool == D3DPOOL_DEFAULT &&
 			(pSourceSurface->surface.Pool == D3DPOOL_SYSTEMMEM || pSourceSurface->IsUsingShadowSurface() ||
-				(pSourceSurface->surface.Pool == D3DPOOL_MANAGED && surface.Shadow && (surface.BitCount == 8 || surface.BitCount == 16 || surface.BitCount == 24 || surface.BitCount == 32))) &&
+				(surface.Pool == D3DPOOL_MANAGED && surface.Shadow && (surface.BitCount == 8 || surface.BitCount == 16 || surface.BitCount == 24 || surface.BitCount == 32))) &&
 			(pSourceSurface->surface.Type != D3DTYPE_DEPTHSTENCIL && surface.Type != D3DTYPE_DEPTHSTENCIL) &&
 			(pSourceSurface->surface.Format == surface.Format) &&
 			(!pSourceSurface->IsPalette() && !IsPalette()) &&
 			!IsStretchRect && !IsMirrorLeftRight && !IsMirrorUpDown && !IsColorKey)
 		{
+			PrepareRenderTarget();
+
 			ScopedGetMipMapContext Src(pSourceSurface, SrcMipMapLevel);
 			ScopedGetMipMapContext Dest(this, MipMapLevel);
-
-			PrepareRenderTarget();
 
 			if (Src.GetSurface() && Dest.GetSurface())
 			{

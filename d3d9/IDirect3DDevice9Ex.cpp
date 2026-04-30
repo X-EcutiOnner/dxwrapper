@@ -104,81 +104,92 @@ ULONG m_IDirect3DDevice9Ex::Release()
 {
 	Logging::LogDebug() << __FUNCTION__ << " (" << this << ")";
 
-	ScopedCriticalSection ThreadLock(&d9cs, Config.AntiAliasing || RequirePresentHandling());
+	bool ShouldDeleteMe = false;
+	ULONG ref = 0;
 
-	ULONG ref = ProxyInterface->Release();
-
-	ULONG UsedRef = GetResourceRefCount();
-
-	LONG EmuRef = InterlockedDecrementIfPositive(&RefCount);
-
-#ifdef ENABLE_DEBUGOVERLAY
-	bool UsingDOverlay = (Config.EnableImgui && DOverlay.IsSetup() && DOverlay.Getd3d9Device() == ProxyInterface);
-	UsedRef += (UsingDOverlay ? 1 : 0);
-#endif
-
-	if ((EmuRef == 0 && ref != UsedRef) ||
-		(EmuRef != 0 && ref == UsedRef))
+	// Handle release
 	{
-		Logging::Log() << __FUNCTION__ << " Warning: Refcounts don't match! Emulated ref: " << EmuRef << " Device ref: " << ref << " Used ref: " << UsedRef;
-	}
-
-	// Teardown wrapper resources before destroying device
-	if (UsedRef > 0 && ref == UsedRef)
-	{
-		ProxyInterface->AddRef();
-
-		ReleaseResources(false);
-
-#ifdef ENABLE_DEBUGOVERLAY
-		if (UsingDOverlay)
-		{
-			DOverlay.Shutdown();
-		}
-#endif
-
-		UsedRef = 0;
+		ScopedCriticalSection ThreadLock(&d9cs, Config.AntiAliasing || RequirePresentHandling());
 
 		ref = ProxyInterface->Release();
+
+		ULONG UsedRef = GetResourceRefCount();
+
+		LONG EmuRef = InterlockedDecrementIfPositive(&RefCount);
+
+#ifdef ENABLE_DEBUGOVERLAY
+		bool UsingDOverlay = (Config.EnableImgui && DOverlay.IsSetup() && DOverlay.Getd3d9Device() == ProxyInterface);
+		UsedRef += (UsingDOverlay ? 1 : 0);
+#endif
+
+		if ((EmuRef == 0 && ref != UsedRef) ||
+			(EmuRef != 0 && ref == UsedRef))
+		{
+			Logging::Log() << __FUNCTION__ << " Warning: Refcounts don't match! Emulated ref: " << EmuRef << " Device ref: " << ref << " Used ref: " << UsedRef;
+		}
+
+		// Teardown wrapper resources before destroying device
+		if (UsedRef > 0 && ref == UsedRef)
+		{
+			ProxyInterface->AddRef();
+
+			ReleaseResources(false);
+
+#ifdef ENABLE_DEBUGOVERLAY
+			if (UsingDOverlay)
+			{
+				DOverlay.Shutdown();
+			}
+#endif
+
+			UsedRef = 0;
+
+			ref = ProxyInterface->Release();
+		}
+		else if (ref > 0 && ref < UsedRef)
+		{
+			Logging::Log() << __FUNCTION__ << " Error: device ref '" << ref << "' is less than used ref '" << UsedRef << "'.";
+		}
+
+		if (ref == 0)
+		{
+			// Reset display
+			HMONITOR hMonitor = DeviceDetails.hMonitor;
+			if (Config.FullscreenWindowMode)
+			{
+				Utils::ResetDisplaySettings(hMonitor);
+			}
+
+			// Clear all cache before deleting device
+			ProxyAddressLookupTable9.DeleteAll();
+
+			// Check for entries left in lists
+			if (EmulatedSurfaceList.size())
+			{
+				Logging::Log() << __FUNCTION__ << " Warning: EmulatedSurfaceList still contains entries: " << EmulatedSurfaceList.size();
+			}
+
+			if (StateBlockTable.size())
+			{
+				Logging::Log() << __FUNCTION__ << " Warning: StateBlockTable still contains entries: " << StateBlockTable.size();
+			}
+
+			if (DeletedStateBlocks.size())
+			{
+				Logging::Log() << __FUNCTION__ << " Warning: DeletedStateBlocks still contains entries: " << DeletedStateBlocks.size();
+			}
+
+			ShouldDeleteMe = true;
+		}
+		else
+		{
+			ref = ref > UsedRef ? ref - UsedRef : ref;
+		}
 	}
-	else if (ref > 0 && ref < UsedRef)
+
+	if (ShouldDeleteMe)
 	{
-		Logging::Log() << __FUNCTION__ << " Error: device ref '" << ref << "' is less than used ref '" << UsedRef << "'.";
-	}
-
-	if (ref == 0)
-	{
-		// Reset display
-		HMONITOR hMonitor = DeviceDetails.hMonitor;
-		if (Config.FullscreenWindowMode)
-		{
-			Utils::ResetDisplaySettings(hMonitor);
-		}
-
-		// Clear all cache before deleting device
-		ProxyAddressLookupTable9.DeleteAll();
-
-		// Check for entries left in lists
-		if (EmulatedSurfaceList.size())
-		{
-			Logging::Log() << __FUNCTION__ << " Warning: EmulatedSurfaceList still contains entries: " << EmulatedSurfaceList.size();
-		}
-
-		if (StateBlockTable.size())
-		{
-			Logging::Log() << __FUNCTION__ << " Warning: StateBlockTable still contains entries: " << StateBlockTable.size();
-		}
-
-		if (DeletedStateBlocks.size())
-		{
-			Logging::Log() << __FUNCTION__ << " Warning: DeletedStateBlocks still contains entries: " << DeletedStateBlocks.size();
-		}
-
 		delete this;
-	}
-	else
-	{
-		ref = ref > UsedRef ? ref - UsedRef : ref;
 	}
 
 	return ref;

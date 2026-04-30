@@ -3008,11 +3008,18 @@ void m_IDirectDrawX::GetSurfaceDisplay(DWORD& Width, DWORD& Height, DWORD& BPP, 
 		(LastSetHeight && Height && LastSetHeight != Height) ||
 		(LastSetBPP && BPP && LastSetBPP != BPP))
 	{
+		LastSetWidth = Width;
+		LastSetHeight = Height;
+		LastSetBPP = BPP;
+
 		ResetAllSurfaceDisplay();
 	}
-	LastSetWidth = Width;
-	LastSetHeight = Height;
-	LastSetBPP = BPP;
+	else
+	{
+		LastSetWidth = Width;
+		LastSetHeight = Height;
+		LastSetBPP = BPP;
+	}
 }
 
 void m_IDirectDrawX::GetViewportResolution(DWORD& Width, DWORD& Height)

@@ -305,6 +305,9 @@ LONG WINAPI Utils::Vectored_Exception_Handler(EXCEPTION_POINTERS* ExceptionInfo)
 		}
 		break;
 
+		case 0x406D1388:	// RaiseException
+			return EXCEPTION_CONTINUE_SEARCH;
+
 		default:
 		{
 			char moduleName[MAX_PATH] = {};

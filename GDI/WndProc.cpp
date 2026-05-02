@@ -609,7 +609,7 @@ LRESULT CALLBACK WndProc::Handler(HWND hWnd, UINT Msg, WPARAM wParam, LPARAM lPa
 		// Some games (e.g. Police Quest SWAT 2, Splintercell Chaos Theory) don't handle size messages well
 		if (pDataStruct->IsCreatingDevice)
 		{
-			LOG_LIMIT(3, __FUNCTION__ << " Warning: filtering some messages when forcing windowed mode. " <<
+			LOG_LIMIT(3, __FUNCTION__ << " Warning: filtering some messages when creating device. " <<
 				hWnd << " " << Logging::hex(Msg) << " " << wParam << " " << lParam << " IsIconic: " << IsIconic(hWnd));
 			return DefWndProc(hWnd, Msg, wParam, lParam);
 		}
@@ -624,7 +624,7 @@ LRESULT CALLBACK WndProc::Handler(HWND hWnd, UINT Msg, WPARAM wParam, LPARAM lPa
 		// Filter some messages when creating device
 		if (pDataStruct->IsCreatingDevice)
 		{
-			LOG_LIMIT(3, __FUNCTION__ << " Warning: filtering some messages when forcing windowed mode. " <<
+			LOG_LIMIT(3, __FUNCTION__ << " Warning: filtering some messages when creating device. " <<
 				hWnd << " " << Logging::hex(Msg) << " " << wParam << " " << lParam << " IsIconic: " << IsIconic(hWnd));
 			return DefWndProc(hWnd, Msg, wParam, lParam);
 		}

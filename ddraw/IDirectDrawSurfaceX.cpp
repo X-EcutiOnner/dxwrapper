@@ -6685,7 +6685,7 @@ HRESULT m_IDirectDrawSurfaceX::ColorFill(RECT* pRect, D3DCOLOR dwFillColor, DWOR
 			if (!IsUsingCurrentRenderTarget)
 			{
 				hr = (*d3d9Device)->GetDepthStencilSurface(pDepthStencil.GetAddressOf());
-				if (FAILED(hr))
+				if (FAILED(hr) && hr != D3DERR_NOTFOUND)
 				{
 					LOG_LIMIT(100, __FUNCTION__ << " Error: failed to get depth buffer: " << (DDERR)hr);
 					break;
@@ -7933,7 +7933,7 @@ HRESULT m_IDirectDrawSurfaceX::CopyZBuffer(m_IDirectDrawSurfaceX* pSourceSurface
 	if (!IsUsingCurrentZBuffer)
 	{
 		HRESULT hr = (*d3d9Device)->GetDepthStencilSurface(pDepthStencil.GetAddressOf());
-		if (FAILED(hr))
+		if (FAILED(hr) && hr != D3DERR_NOTFOUND)
 		{
 			LOG_LIMIT(100, __FUNCTION__ << " Error: failed to get depth buffer: " << (DDERR)hr);
 			return DDERR_GENERIC;

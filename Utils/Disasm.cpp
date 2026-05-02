@@ -305,7 +305,9 @@ LONG WINAPI Utils::Vectored_Exception_Handler(EXCEPTION_POINTERS* ExceptionInfo)
 		}
 		break;
 
-		case 0x406D1388:	// RaiseException
+		case 0x40010006: // debug/runtime
+		case 0x406D1388: // thread naming
+		case 0xE06D7363: // C++ exception
 			return EXCEPTION_CONTINUE_SEARCH;
 
 		default:

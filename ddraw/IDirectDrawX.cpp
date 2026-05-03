@@ -3002,24 +3002,6 @@ void m_IDirectDrawX::GetSurfaceDisplay(DWORD& Width, DWORD& Height, DWORD& BPP, 
 
 	// Force color mode
 	BPP = (Config.DdrawOverrideBitMode) ? Config.DdrawOverrideBitMode : BPP;
-
-	// Check if resolution changed
-	if ((LastSetWidth && Width && LastSetWidth != Width) ||
-		(LastSetHeight && Height && LastSetHeight != Height) ||
-		(LastSetBPP && BPP && LastSetBPP != BPP))
-	{
-		LastSetWidth = Width;
-		LastSetHeight = Height;
-		LastSetBPP = BPP;
-
-		ResetAllSurfaceDisplay();
-	}
-	else
-	{
-		LastSetWidth = Width;
-		LastSetHeight = Height;
-		LastSetBPP = BPP;
-	}
 }
 
 void m_IDirectDrawX::GetViewportResolution(DWORD& Width, DWORD& Height)
@@ -3315,10 +3297,24 @@ void m_IDirectDrawX::AfterDeviceCreation()
 	IsDeviceVerticesSet = false;
 	EnableWaitVsync = false;
 
-	// Get updated SurfaceDisplay after creating device to update any surface that needs it
+	// Check if resolution changed after creating device to update any surface that needs it
 	{
 		DWORD Width = 0, Height = 0, BPP = 0, RefreshRate = 0;
 		GetSurfaceDisplay(Width, Height, BPP, RefreshRate);
+
+		const bool ResolutionChanged =
+			((LastSetWidth && Width && LastSetWidth != Width) ||
+			(LastSetHeight && Height && LastSetHeight != Height) ||
+			(LastSetBPP && BPP && LastSetBPP != BPP));
+
+		LastSetWidth = Width;
+		LastSetHeight = Height;
+		LastSetBPP = BPP;
+
+		if (ResolutionChanged)
+		{
+			ResetAllSurfaceDisplay();
+		}
 	}
 
 	// Copy GDI data to back buffer

@@ -823,15 +823,18 @@ void ConvertCaps(DDCAPS& Caps7, D3DCAPS9& Caps9)
 
 void AdjustVidMemory(LPDWORD lpdwTotal, LPDWORD lpdwFree)
 {
-	DWORD TotalVidMem = (lpdwTotal && *lpdwTotal) ? *lpdwTotal : (lpdwFree && *lpdwFree) ? *lpdwFree + MinUsedVidMemory : MaxVidMemory;
+	const bool UseTotal = (lpdwTotal && *lpdwTotal);
+	const bool UseFree = (lpdwFree && *lpdwFree);
+
+	DWORD TotalVidMem = UseTotal ? *lpdwTotal : UseFree ? *lpdwFree + MinUsedVidMemory : MaxVidMemory;
 	TotalVidMem = min(TotalVidMem, MaxVidMemory);
-	DWORD AvailVidMem = (lpdwFree && *lpdwFree) ? *lpdwFree : TotalVidMem - MinUsedVidMemory;
+	DWORD AvailVidMem = UseFree ? *lpdwFree : TotalVidMem - MinUsedVidMemory;
 	AvailVidMem = min(AvailVidMem, TotalVidMem - MinUsedVidMemory);
-	if (lpdwTotal && *lpdwTotal)
+	if (lpdwTotal)
 	{
 		*lpdwTotal = TotalVidMem;
 	}
-	if (lpdwFree && *lpdwFree)
+	if (lpdwFree)
 	{
 		*lpdwFree = AvailVidMem;
 	}

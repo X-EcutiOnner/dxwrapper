@@ -448,8 +448,14 @@ HRESULT m_IDirect3DX::FindDevice(LPD3DFINDDEVICESEARCH lpD3DFDS, LPD3DFINDDEVICE
 					return DDENUMRET_OK;	// Doesn't match continue
 				}
 
-				if ((self->lpD3DFDS->dwFlags & D3DFDS_GUID) &&
-					(lpGuid && !IsEqualGUID(*lpGuid, self->lpD3DFDS->guid)))
+				const bool CheckGuid = (self->lpD3DFDS->dwFlags & D3DFDS_GUID) && lpGuid;
+				const bool GuidRGBMatch = CheckGuid && (IsEqualGUID(self->lpD3DFDS->guid, IID_IDirect3DRGBDevice) &&
+					(IsEqualGUID(*lpGuid, IID_IDirect3DMMXDevice) || IsEqualGUID(*lpGuid, IID_IDirect3DRefDevice)));
+
+				if (CheckGuid && !GuidRGBMatch &&
+					!IsEqualGUID(*lpGuid, self->lpD3DFDS->guid) &&
+					!IsEqualGUID(*lpGuid, IID_IDirect3DNullDevice) &&
+					!IsEqualGUID(*lpGuid, GUID_NULL))
 				{
 					return DDENUMRET_OK;	// Doesn't match continue
 				}
@@ -549,7 +555,7 @@ HRESULT m_IDirect3DX::FindDevice(LPD3DFINDDEVICESEARCH lpD3DFDS, LPD3DFINDDEVICE
 
 		if (CallbackContext.Found)
 		{
-			lpD3DFDR->guid = lpD3DFDS->guid;
+			lpD3DFDR->guid = CallbackContext.lpD3DFDS->guid;
 
 			LPD3DDEVICEDESC lpddHwDesc = &lpD3DFDR->ddHwDesc;
 			memcpy(lpddHwDesc, &CallbackContext.ddHwDesc, Size);
@@ -822,8 +828,8 @@ HRESULT m_IDirect3DX::EnumZBufferFormats(REFCLSID riidDevice, LPD3DENUMPIXELFORM
 			return DDERR_INVALIDOBJECT;
 		}
 
-		if (riidDevice == IID_IDirect3DRGBDevice || riidDevice == IID_IDirect3DMMXDevice || riidDevice == IID_IDirect3DRefDevice ||
-			riidDevice == IID_IDirect3DHALDevice || riidDevice == IID_IDirect3DTnLHalDevice || riidDevice == GUID_NULL) 
+		if (riidDevice == IID_IDirect3DRampDevice || riidDevice == IID_IDirect3DMMXDevice || riidDevice == IID_IDirect3DRGBDevice || riidDevice == IID_IDirect3DRefDevice ||
+			riidDevice == IID_IDirect3DHALDevice || riidDevice == IID_IDirect3DTnLHalDevice || riidDevice == GUID_NULL)
 		{
 			// Send supported formats to callback function
 			for (const auto& Format : D9Cache.zFormat)
@@ -840,14 +846,10 @@ HRESULT m_IDirect3DX::EnumZBufferFormats(REFCLSID riidDevice, LPD3DENUMPIXELFORM
 			}
 			return D3D_OK;
 		}
-		else if (riidDevice == IID_IDirect3DRampDevice)
-		{
-			// The IID_IDirect3DRampDevice, used for the ramp emulation device, is not supported by interfaces later than IDirect3D2
-			return DDERR_NOZBUFFERHW;
-		}
 		else if (riidDevice == IID_IDirect3DNullDevice)
 		{
 			// NullDevice renders nothing
+			LOG_LIMIT(100, __FUNCTION__ << " Warning: Attempting to use " << riidDevice << " device!");
 			return D3D_OK;
 		}
 		else
@@ -924,7 +926,7 @@ HRESULT m_IDirect3DX::EnumDevices7(LPD3DENUMDEVICESCALLBACK7 lpEnumDevicesCallba
 			(DirectXVersion == 3) ? D3DDEVICEDESC6_SIZE : sizeof(D3DDEVICEDESC);
 
 		// Loop through all adapters
-		for (D3DDEVTYPE Type : { D3DDEVTYPE_REF, D3DDEVTYPE_HAL, (D3DDEVTYPE)D3DDEVTYPE_TNLHAL })
+		for (D3DDEVTYPE Type : { (D3DDEVTYPE)D3DDEVTYPE_RAMP, D3DDEVTYPE_REF, D3DDEVTYPE_HAL, (D3DDEVTYPE)D3DDEVTYPE_TNLHAL })
 		{
 			// Get Device Caps
 			D3DCAPS9 Caps9 = D9Cache.Caps9;
@@ -939,6 +941,12 @@ HRESULT m_IDirect3DX::EnumDevices7(LPD3DENUMDEVICESCALLBACK7 lpEnumDevicesCallba
 
 			switch ((DWORD)Type)
 			{
+			case D3DDEVTYPE_RAMP:
+				lpName = "Direct3D Ramp Device";
+				lpDescription = "Microsoft Direct3D Ramp Software Emulation";
+				break;
+
+			default:
 			case D3DDEVTYPE_REF:
 				lpName = "RGB Emulation";
 				lpDescription = "Microsoft Direct3D RGB Software Emulation";
@@ -949,7 +957,6 @@ HRESULT m_IDirect3DX::EnumDevices7(LPD3DENUMDEVICESCALLBACK7 lpEnumDevicesCallba
 				lpDescription = "Microsoft Direct3D Hardware acceleration through Direct3D HAL";
 				break;
 
-			default:
 			case D3DDEVTYPE_TNLHAL:
 				lpName = "Direct3D T&L HAL";
 				lpDescription = "Microsoft Direct3D Hardware Transform and Lighting acceleration capable device";
@@ -962,7 +969,7 @@ HRESULT m_IDirect3DX::EnumDevices7(LPD3DENUMDEVICESCALLBACK7 lpEnumDevicesCallba
 			strcpy_s(Desc, lpDescription);
 			strcpy_s(Name, lpName);
 
-			if (lpEnumDevicesCallback)
+			if (lpEnumDevicesCallback && Type != D3DDEVTYPE_TNLHAL)
 			{
 				// Get device GUID
 				GUID deviceGUID = DeviceDesc7.deviceGUID;
@@ -980,6 +987,16 @@ HRESULT m_IDirect3DX::EnumDevices7(LPD3DENUMDEVICESCALLBACK7 lpEnumDevicesCallba
 				ConvertDeviceDesc(DeviceDesc7, Caps9);
 				ConvertDeviceDesc(D3DSWDevDesc, DeviceDesc7);
 
+				// Special handling for Ramp
+				if (Type == D3DDEVTYPE_RAMP)
+				{
+					D3DDRVDevDesc.dwFlags = 0;
+					D3DDRVDevDesc.dcmColorModel = D3DCOLOR_MONO;
+
+					D3DSWDevDesc.dwFlags = 0;
+					D3DSWDevDesc.dcmColorModel = D3DCOLOR_MONO;
+				}
+
 				D3DDRVDevDesc.dwSize = DevSize;
 				D3DSWDevDesc.dwSize = DevSize;
 
@@ -988,7 +1005,7 @@ HRESULT m_IDirect3DX::EnumDevices7(LPD3DENUMDEVICESCALLBACK7 lpEnumDevicesCallba
 					return D3D_OK;
 				}
 			}
-			else if (lpEnumDevicesCallback7)
+			else if (lpEnumDevicesCallback7 && Type != D3DDEVTYPE_RAMP)
 			{
 				if (lpEnumDevicesCallback7(Desc, Name, &DeviceDesc7, lpUserArg) == DDENUMRET_CANCEL)
 				{

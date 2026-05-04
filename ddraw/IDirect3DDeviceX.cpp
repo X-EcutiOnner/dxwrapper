@@ -4874,6 +4874,8 @@ void m_IDirect3DDeviceX::InitInterface(DWORD DirectXVersion)
 
 	if (Config.Dd7to9)
 	{
+		Logging::Log() << __FUNCTION__ << " Created m_IDirect3DDeviceX (" << this << ") using GUID: " << ClassID;
+
 		if (ddrawParent)
 		{
 			d3d9Device = ddrawParent->GetDirectD9Device();

@@ -2213,7 +2213,7 @@ HRESULT m_IDirectDrawSurfaceX::GetSurfaceDesc2(LPDDSURFACEDESC2 lpDDSurfaceDesc2
 				if ((!MipMaps[Level].dwWidth || !MipMaps[Level].dwHeight) && surface.Texture)
 				{
 					D3DSURFACE_DESC Desc = {};
-					surface.Texture->GetLevelDesc(GetD3d9MipMapLevel(MipMapLevel), &Desc);
+					surface.Texture->GetLevelDesc(GetD9MipMapLevel(MipMapLevel), &Desc);
 					MipMaps[Level].dwWidth = Desc.Width;
 					MipMaps[Level].dwHeight = Desc.Height;
 				}
@@ -4275,7 +4275,7 @@ void m_IDirectDrawSurfaceX::ReleaseDirectDrawResources()
 	}
 }
 
-LPDIRECT3DSURFACE9 m_IDirectDrawSurfaceX::GetD3d9Surface()
+LPDIRECT3DSURFACE9 m_IDirectDrawSurfaceX::GetD9Surface()
 {
 	// Check for device interface
 	if (FAILED(CheckInterface(__FUNCTION__, true, true, true)))
@@ -4316,7 +4316,7 @@ LPDIRECT3DSURFACE9 m_IDirectDrawSurfaceX::Get3DMipMapSurface(DWORD MipMapLevel)
 	else if (surface.Texture)
 	{
 		LPDIRECT3DSURFACE9 pSurfaceD9 = nullptr;
-		surface.Texture->GetSurfaceLevel(GetD3d9MipMapLevel(MipMapLevel), &pSurfaceD9);
+		surface.Texture->GetSurfaceLevel(GetD9MipMapLevel(MipMapLevel), &pSurfaceD9);
 		return pSurfaceD9;
 	}
 	return nullptr;
@@ -4330,7 +4330,7 @@ void m_IDirectDrawSurfaceX::Release3DMipMapSurface(LPDIRECT3DSURFACE9 pSurfaceD9
 	}
 }
 
-LPDIRECT3DTEXTURE9 m_IDirectDrawSurfaceX::GetD3d9DrawTexture()
+LPDIRECT3DTEXTURE9 m_IDirectDrawSurfaceX::GetD9DrawTexture()
 {
 	// Check if texture already exists
 	if (surface.DrawTexture)
@@ -4365,7 +4365,7 @@ LPDIRECT3DTEXTURE9 m_IDirectDrawSurfaceX::GetD3d9DrawTexture()
 	return nullptr;
 }
 
-LPDIRECT3DTEXTURE9 m_IDirectDrawSurfaceX::GetD3d9Texture(bool InterfaceCheck)
+LPDIRECT3DTEXTURE9 m_IDirectDrawSurfaceX::GetD9Texture(bool InterfaceCheck)
 {
 	if (InterfaceCheck)
 	{
@@ -4911,7 +4911,7 @@ HRESULT m_IDirectDrawSurfaceX::CreateD9Surface()
 					Logging::LogDebug() << __FUNCTION__ << " Restoring Direct3D9 texture surface data: " << Format;
 
 					D3DSURFACE_DESC Desc = {};
-					if (FAILED(surface.Surface ? surface.Surface->GetDesc(&Desc) : surface.Texture->GetLevelDesc(GetD3d9MipMapLevel(Level), &Desc)))
+					if (FAILED(surface.Surface ? surface.Surface->GetDesc(&Desc) : surface.Texture->GetLevelDesc(GetD9MipMapLevel(Level), &Desc)))
 					{
 						LOG_LIMIT(100, __FUNCTION__ << " Error: failed to get surface desc!");
 						break;
@@ -5650,7 +5650,7 @@ void m_IDirectDrawSurfaceX::ReleaseD9Surface(bool BackupData, bool ResetSurface)
 					}
 
 					D3DSURFACE_DESC Desc = {};
-					if (FAILED(surface.Surface ? surface.Surface->GetDesc(&Desc) : surface.Texture->GetLevelDesc(GetD3d9MipMapLevel(Level), &Desc)))
+					if (FAILED(surface.Surface ? surface.Surface->GetDesc(&Desc) : surface.Texture->GetLevelDesc(GetD9MipMapLevel(Level), &Desc)))
 					{
 						LOG_LIMIT(100, __FUNCTION__ << " Error: failed to get surface desc!");
 						break;
@@ -6324,7 +6324,7 @@ void m_IDirectDrawSurfaceX::EndWriteSyncSurfaces(LPRECT lpDestRect, DWORD MipMap
 		// Pre-populate draw texture
 		if (Using3D && IsSurfaceTexture() && IsColorKeyTexture() && !IsPrimaryOrBackBuffer() && !IsRenderTarget())
 		{
-			GetD3d9DrawTexture();
+			GetD9DrawTexture();
 		}
 	}
 
@@ -9090,10 +9090,10 @@ HRESULT m_IDirectDrawSurfaceX::LockD3d9Surface(D3DLOCKED_RECT* pLockedRect, RECT
 	// Lock surface texture
 	else if (surface.Texture)
 	{
-		HRESULT hr = surface.Texture->LockRect(GetD3d9MipMapLevel(MipMapLevel), pLockedRect, pRect, Flags);
+		HRESULT hr = surface.Texture->LockRect(GetD9MipMapLevel(MipMapLevel), pLockedRect, pRect, Flags);
 		if (FAILED(hr) && (Flags & D3DLOCK_NOSYSLOCK))
 		{
-			hr = surface.Texture->LockRect(GetD3d9MipMapLevel(MipMapLevel), pLockedRect, pRect, Flags & ~D3DLOCK_NOSYSLOCK);
+			hr = surface.Texture->LockRect(GetD9MipMapLevel(MipMapLevel), pLockedRect, pRect, Flags & ~D3DLOCK_NOSYSLOCK);
 		}
 		return hr;
 	}
@@ -9120,7 +9120,7 @@ HRESULT m_IDirectDrawSurfaceX::UnLockD3d9Surface(DWORD MipMapLevel)
 	// Unlock surface texture
 	else if (surface.Texture)
 	{
-		return surface.Texture->UnlockRect(GetD3d9MipMapLevel(MipMapLevel));
+		return surface.Texture->UnlockRect(GetD9MipMapLevel(MipMapLevel));
 	}
 
 	return DDERR_GENERIC;

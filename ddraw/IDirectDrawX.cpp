@@ -65,9 +65,6 @@ namespace {
 	DWORD LastSetHeight = 0;
 	DWORD LastSetBPP = 0;
 
-	// Cached FourCC list
-	std::vector<D3DFORMAT> FourCCsList;
-
 	// Mouse hook
 	MOUSEHOOK MouseHook = {};
 
@@ -84,6 +81,29 @@ namespace {
 		LPDIRECT3DINDEXBUFFER9 Buffer = nullptr;
 		DX_INDEX_BUFFER(DWORD MaxCount) : MaxCount(MaxCount) {}
 	};
+
+	struct D9CAPS_CACHE{
+		D3DCAPS9 Caps9 = {};
+		std::vector<D3DFORMAT> FourCCsList;
+		std::vector<D3DFORMAT> TextureFormat;
+		DWORD dwDeviceZBufferBitDepth = 0;
+		std::vector<D3DFORMAT> zFormat;
+
+		bool empty() const
+		{
+			return Caps9.DeviceType == 0;
+		}
+
+		void clear()
+		{
+			ZeroMemory(&Caps9, sizeof(Caps9));
+			FourCCsList.clear();
+			TextureFormat.clear();
+			dwDeviceZBufferBitDepth = 0;
+			zFormat.clear();
+		}
+	};
+	D9CAPS_CACHE D9Cache;
 
 	// Preset from another thread
 	PRESENTTHREAD PresentThread;
@@ -1208,51 +1228,65 @@ HRESULT m_IDirectDrawX::GetCaps(LPDDCAPS lpDDDriverCaps, LPDDCAPS lpDDHELCaps)
 		DriverCaps.dwSize = sizeof(DDCAPS);
 		HELCaps.dwSize = sizeof(DDCAPS);
 
-		IDirect3D9* pObjectD9 = nullptr;
-		ComPtr<IDirect3D9> ComObjectD9;
-
-		if (Config.Dd7to9)
+		// Get cap cache
+		if (D9Cache.empty())
 		{
-			// Check for device interface
-			if (FAILED(CheckInterface(__FUNCTION__, false)))
+			if (Config.Dd7to9)
 			{
-				return DDERR_GENERIC;
-			}
-			pObjectD9 = d3d9Object;
-		}
-		else // DdrawUseDirect3D9Caps
-		{
-			// Load d3d9.dll
-			HMODULE d3d9_dll = nullptr;
-			GetModuleHandleExA(GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT, "d3d9.dll", &d3d9_dll);
-			if (!d3d9_dll)
-			{
-				d3d9_dll = LoadLibraryA("d3d9.dll");
-				if (!d3d9_dll)
+				// Check for device interface
+				if (FAILED(CheckInterface(__FUNCTION__, false)))
 				{
-					LOG_LIMIT(100, __FUNCTION__ << " Error: failed to load d3d9.dll!");
 					return DDERR_GENERIC;
 				}
+
+				// Get Caps
+				GetD9Cache();
 			}
-
-			// Get Direct3DCreate9 function address
-			Direct3DCreate9Proc Direct3DCreate9 = (Direct3DCreate9Proc)GetProcAddress(d3d9_dll, "Direct3DCreate9");
-
-			if (!Direct3DCreate9)
+			else // DdrawUseDirect3D9Caps
 			{
-				LOG_LIMIT(100, __FUNCTION__ << " Error: failed to get 'Direct3DCreate9' ProcAddress of d3d9.dll!");
-				return DDERR_GENERIC;
-			}
+				ComPtr<IDirect3D9> ComObjectD9;
 
-			*ComObjectD9.GetAddressOf() = Direct3DCreate9(D3D_SDK_VERSION);
+				// Load d3d9.dll
+				HMODULE d3d9_dll = nullptr;
+				GetModuleHandleExA(GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT, "d3d9.dll", &d3d9_dll);
+				if (!d3d9_dll)
+				{
+					d3d9_dll = LoadLibraryA("d3d9.dll");
+					if (!d3d9_dll)
+					{
+						LOG_LIMIT(100, __FUNCTION__ << " Error: failed to load d3d9.dll!");
+						return DDERR_GENERIC;
+					}
+				}
 
-			// Error creating Direct3D9
-			if (!ComObjectD9.Get())
-			{
-				LOG_LIMIT(100, __FUNCTION__ << " Error: d3d9 object not setup!");
-				return DDERR_GENERIC;
+				// Get Direct3DCreate9 function address
+				Direct3DCreate9Proc Direct3DCreate9 = (Direct3DCreate9Proc)GetProcAddress(d3d9_dll, "Direct3DCreate9");
+
+				if (!Direct3DCreate9)
+				{
+					LOG_LIMIT(100, __FUNCTION__ << " Error: failed to get 'Direct3DCreate9' ProcAddress of d3d9.dll!");
+					return DDERR_GENERIC;
+				}
+
+				*ComObjectD9.GetAddressOf() = Direct3DCreate9(D3D_SDK_VERSION);
+
+				// Error creating Direct3D9
+				if (!ComObjectD9.Get())
+				{
+					LOG_LIMIT(100, __FUNCTION__ << " Error: d3d9 object not setup!");
+					return DDERR_GENERIC;
+				}
+
+				// Get Caps
+				ComObjectD9->GetDeviceCaps(d3d9AdapterIndex, D3DDEVTYPE_HAL, &D9Cache.Caps9);
 			}
-			pObjectD9 = ComObjectD9.Get();
+		}
+
+		// Check cache
+		if (D9Cache.empty())
+		{
+			LOG_LIMIT(100, __FUNCTION__ << " Error: could not get Cap9 cache!");
+			return DDERR_GENERIC;
 		}
 
 		HRESULT hr = DD_OK;
@@ -1263,18 +1297,18 @@ HRESULT m_IDirectDrawX::GetCaps(LPDDCAPS lpDDDriverCaps, LPDDCAPS lpDDHELCaps)
 		DWORD dwVidTotal, dwVidFree;
 		GetAvailableVidMem2(&ddsCaps2, &dwVidTotal, &dwVidFree);
 
-		// Get caps
-		D3DCAPS9 Caps9;
+		// Convert caps
+		D3DCAPS9 Caps9 = D9Cache.Caps9;
 		if (lpDDDriverCaps)
 		{
-			hr = pObjectD9->GetDeviceCaps(d3d9AdapterIndex, D3DDEVTYPE_HAL, &Caps9);
+			Caps9.DeviceType = D3DDEVTYPE_HAL;
 			ConvertCaps(DriverCaps, Caps9);
 			DriverCaps.dwVidMemTotal = dwVidTotal;
 			DriverCaps.dwVidMemFree = dwVidFree;
 		}
 		if (lpDDHELCaps)
 		{
-			hr = pObjectD9->GetDeviceCaps(d3d9AdapterIndex, D3DDEVTYPE_REF, &Caps9);
+			Caps9.DeviceType = D3DDEVTYPE_REF;
 			ConvertCaps(HELCaps, Caps9);
 			HELCaps.dwVidMemTotal = dwVidTotal;
 			HELCaps.dwVidMemFree = dwVidFree;
@@ -1412,23 +1446,20 @@ HRESULT m_IDirectDrawX::GetFourCCCodes(LPDWORD lpNumCodes, LPDWORD lpCodes)
 			return DDERR_INVALIDPARAMS;
 		}
 
-		// Get FourCC list
-		if (FourCCsList.size() == 0)
+		// Check for device interface
+		if (FAILED(CheckInterface(__FUNCTION__, false)))
 		{
-			// Check for device interface
-			if (FAILED(CheckInterface(__FUNCTION__, false)))
-			{
-				return DDERR_GENERIC;
-			}
+			return DDERR_GENERIC;
+		}
 
-			// Test FourCCs that are supported
-			for (D3DFORMAT format : FourCCTypes)
-			{
-				if (!IsUnsupportedFormat(format) && SUCCEEDED(d3d9Object->CheckDeviceFormat(d3d9AdapterIndex, D3DDEVTYPE_HAL, D3DFMT_X8R8G8B8, 0, D3DRTYPE_SURFACE, format)))
-				{
-					FourCCsList.push_back(format);
-				}
-			}
+		// Get Caps
+		GetD9Cache();
+
+		// Check cache
+		if (D9Cache.empty())
+		{
+			LOG_LIMIT(100, __FUNCTION__ << " Error: could not get FourCC cache!");
+			return DDERR_GENERIC;
 		}
 
 		// If the number of entries is too small to accommodate all the codes, lpNumCodes is set to the required number,
@@ -1436,12 +1467,12 @@ HRESULT m_IDirectDrawX::GetFourCCCodes(LPDWORD lpNumCodes, LPDWORD lpCodes)
 		if (lpCodes)
 		{
 			// Copy data to array
-			const DWORD SizeToCopy = min(FourCCsList.size(), *lpNumCodes);
-			memcpy(lpCodes, FourCCsList.data(), SizeToCopy * sizeof(D3DFORMAT));
+			const DWORD SizeToCopy = min(D9Cache.FourCCsList.size(), *lpNumCodes);
+			memcpy(lpCodes, D9Cache.FourCCsList.data(), SizeToCopy * sizeof(D3DFORMAT));
 		}
 
 		// Set total number of FourCCs
-		*lpNumCodes = FourCCsList.size();
+		*lpNumCodes = D9Cache.FourCCsList.size();
 
 		// Return value
 		return DD_OK;
@@ -2463,9 +2494,14 @@ void m_IDirectDrawX::InitInterface(DWORD DirectXVersion)
 	{
 		d3d9AdapterIndex = AdapterIndex;
 
+		D9Cache.clear();
 		if (d3d9Device)
 		{
 			CreateD9Device(__FUNCTION__);
+		}
+		else
+		{
+			GetD9Cache();
 		}
 	}
 
@@ -2553,6 +2589,9 @@ void m_IDirectDrawX::InitInterface(DWORD DirectXVersion)
 		}
 		Device.RefreshRate = 0;
 
+		// Prepair shared memory
+		m_IDirectDrawSurfaceX::StartSharedEmulatedMemory();
+
 		// Prepare for present from another thread
 		if (Config.DdrawAutoFrameSkip)
 		{
@@ -2561,92 +2600,91 @@ void m_IDirectDrawX::InitInterface(DWORD DirectXVersion)
 		}
 
 		// Mouse hook
-		bool EnableMouseHook = Config.DdrawEnableMouseHook &&
-			((Config.DdrawUseNativeResolution || Config.DdrawOverrideWidth || Config.DdrawOverrideHeight) &&
-			(!Config.EnableWindowMode || Config.FullscreenWindowMode));
-
-		// Set mouse hook
-		if (!MouseHook.m_hook && EnableMouseHook)
 		{
-			struct WindowsMouseHook
-			{
-				static LRESULT CALLBACK mouseHookProc(int nCode, WPARAM wParam, LPARAM lParam)
-				{
-					POINT p;
-					if (nCode == HC_ACTION && wParam == WM_MOUSEMOVE)
-					{
-						if (DDrawVector.size() && MouseHook.threadID && MouseHook.ghWriteEvent &&
-							DisplayMode.Width && DisplayMode.Height && Device.Width && Device.Height &&
-							DisplayMode.Width != Device.Width && DisplayMode.Height != Device.Height &&
-							!Device.IsWindowed && IsWindow(DisplayMode.hWnd) && !IsIconic(DisplayMode.hWnd) &&
-							GetCursorPos(&p))
-						{
-							MouseHook.Pos.x = min(p.x, (LONG)DisplayMode.Width - 1);
-							MouseHook.Pos.y = min(p.y, (LONG)DisplayMode.Height - 1);
+			bool EnableMouseHook = Config.DdrawEnableMouseHook &&
+				((Config.DdrawUseNativeResolution || Config.DdrawOverrideWidth || Config.DdrawOverrideHeight) &&
+					(!Config.EnableWindowMode || Config.FullscreenWindowMode));
 
-							if (MouseHook.Pos.x != p.x || MouseHook.Pos.y != p.y)
+			// Set mouse hook
+			if (!MouseHook.m_hook && EnableMouseHook)
+			{
+				struct WindowsMouseHook
+				{
+					static LRESULT CALLBACK mouseHookProc(int nCode, WPARAM wParam, LPARAM lParam)
+					{
+						POINT p;
+						if (nCode == HC_ACTION && wParam == WM_MOUSEMOVE)
+						{
+							if (DDrawVector.size() && MouseHook.threadID && MouseHook.ghWriteEvent &&
+								DisplayMode.Width && DisplayMode.Height && Device.Width && Device.Height &&
+								DisplayMode.Width != Device.Width && DisplayMode.Height != Device.Height &&
+								!Device.IsWindowed && IsWindow(DisplayMode.hWnd) && !IsIconic(DisplayMode.hWnd) &&
+								GetCursorPos(&p))
 							{
-								MouseHook.bChange = true;
-								SetEvent(MouseHook.ghWriteEvent);
+								MouseHook.Pos.x = min(p.x, (LONG)DisplayMode.Width - 1);
+								MouseHook.Pos.y = min(p.y, (LONG)DisplayMode.Height - 1);
+
+								if (MouseHook.Pos.x != p.x || MouseHook.Pos.y != p.y)
+								{
+									MouseHook.bChange = true;
+									SetEvent(MouseHook.ghWriteEvent);
+								}
 							}
 						}
+						return CallNextHookEx(nullptr, nCode, wParam, lParam);
 					}
-					return CallNextHookEx(nullptr, nCode, wParam, lParam);
-				}
-			};
+				};
 
-			Logging::Log() << __FUNCTION__ << " Hooking mouse cursor!";
-			MouseHook.m_hook = SetWindowsHookEx(WH_MOUSE_LL, WindowsMouseHook::mouseHookProc, hModule_dll, 0);
-		}
+				Logging::Log() << __FUNCTION__ << " Hooking mouse cursor!";
+				MouseHook.m_hook = SetWindowsHookEx(WH_MOUSE_LL, WindowsMouseHook::mouseHookProc, hModule_dll, 0);
+			}
 
-		// Start thread
-		if (!MouseHook.threadID && EnableMouseHook)
-		{
-			// A thread to bypass Windows preventing hooks from modifying mouse position
-			struct WindowsMouseThread
+			// Start thread
+			if (!MouseHook.threadID && EnableMouseHook)
 			{
-				static DWORD WINAPI setMousePosThread(LPVOID)
+				// A thread to bypass Windows preventing hooks from modifying mouse position
+				struct WindowsMouseThread
 				{
-					DWORD dwWaitResult = 0;
-					do {
-						dwWaitResult = WaitForSingleObject(MouseHook.ghWriteEvent, INFINITE);
-						if (MouseHook.bChange)
+					static DWORD WINAPI setMousePosThread(LPVOID)
+					{
+						DWORD dwWaitResult = 0;
+						do {
+							dwWaitResult = WaitForSingleObject(MouseHook.ghWriteEvent, INFINITE);
+							if (MouseHook.bChange)
+							{
+								SetCursorPos(MouseHook.Pos.x, MouseHook.Pos.y);
+								MouseHook.bChange = false;
+							}
+						} while (!Config.Exiting && dwWaitResult == WAIT_OBJECT_0);
+
+						// Unhook mouse
+						if (MouseHook.m_hook)
 						{
-							SetCursorPos(MouseHook.Pos.x, MouseHook.Pos.y);
-							MouseHook.bChange = false;
+							UnhookWindowsHookEx(MouseHook.m_hook);
+							MouseHook.m_hook = nullptr;
 						}
-					} while (!Config.Exiting && dwWaitResult == WAIT_OBJECT_0);
 
-					// Unhook mouse
-					if (MouseHook.m_hook)
-					{
-						UnhookWindowsHookEx(MouseHook.m_hook);
-						MouseHook.m_hook = nullptr;
+						// Close handle
+						if (MouseHook.ghWriteEvent)
+						{
+							CloseHandle(MouseHook.ghWriteEvent);
+							MouseHook.ghWriteEvent = nullptr;
+						}
+
+						MouseHook.threadID = nullptr;
+						return 0;
 					}
+				};
 
-					// Close handle
-					if (MouseHook.ghWriteEvent)
-					{
-						CloseHandle(MouseHook.ghWriteEvent);
-						MouseHook.ghWriteEvent = nullptr;
-					}
+				MouseHook.threadID = CreateThread(nullptr, 0, WindowsMouseThread::setMousePosThread, nullptr, 0, nullptr);
+			}
 
-					MouseHook.threadID = nullptr;
-					return 0;
-				}
-			};
-
-			MouseHook.threadID = CreateThread(nullptr, 0, WindowsMouseThread::setMousePosThread, nullptr, 0, nullptr);
+			// Create event
+			if (!MouseHook.ghWriteEvent && EnableMouseHook)
+			{
+				MouseHook.ghWriteEvent = CreateEvent(nullptr, FALSE, FALSE, TEXT("Local\\DxwrapperMouseEvent"));
+			}
 		}
-
-		// Create event
-		if (!MouseHook.ghWriteEvent && EnableMouseHook)
-		{
-			MouseHook.ghWriteEvent = CreateEvent(nullptr, FALSE, FALSE, TEXT("Local\\DxwrapperMouseEvent"));
-		}
-
-		// Prepair shared memory
-		m_IDirectDrawSurfaceX::StartSharedEmulatedMemory();
 	}
 
 	// Check interface to create d3d9 object
@@ -2809,6 +2847,9 @@ void m_IDirectDrawX::ReleaseInterface()
 		{
 			ReleaseD9Object();
 		}
+
+		// Clear cache
+		D9Cache.clear();
 
 		// Close DDI
 		CloseD3DDDI();
@@ -3522,16 +3563,17 @@ HRESULT m_IDirectDrawX::CreateD9Device(char* FunctionName)
 		}
 	}
 
-	// Check device caps for vertex processing support
-	D3DCAPS9 d3dcaps = {};
-	HRESULT hr = d3d9Object->GetDeviceCaps(d3d9AdapterIndex, D3DDEVTYPE_HAL, &d3dcaps);
-	if (FAILED(hr))
+	// Get Caps
+	GetD9Cache();
+
+	// Check cache
+	if (D9Cache.empty())
 	{
-		Logging::Log() << __FUNCTION__ << " Failed to get Direct3D9 device caps: " << (DDERR)hr;
+		LOG_LIMIT(100, __FUNCTION__ << " Warning: could not get Cap9 cache!");
 	}
 
 	// Set behavior flags
-	BehaviorFlags = ((d3dcaps.DevCaps & D3DDEVCAPS_HWTRANSFORMANDLIGHT) ? D3DCREATE_HARDWARE_VERTEXPROCESSING : D3DCREATE_SOFTWARE_VERTEXPROCESSING) |
+	BehaviorFlags = ((D9Cache.Caps9.DevCaps & D3DDEVCAPS_HWTRANSFORMANDLIGHT) ? D3DCREATE_HARDWARE_VERTEXPROCESSING : D3DCREATE_SOFTWARE_VERTEXPROCESSING) |
 		(Device.FPUPreserve ? D3DCREATE_FPU_PRESERVE : NULL) |
 		(Device.MultiThreaded || !Config.DdrawNoMultiThreaded ? D3DCREATE_MULTITHREADED : NULL);
 
@@ -3561,6 +3603,7 @@ HRESULT m_IDirectDrawX::CreateD9Device(char* FunctionName)
 	ScopedFlagSet SetCreatingDevice(WndDataStruct && !WndDataStruct->IsCreatingDevice ? WndDataStruct->IsCreatingDevice : tmpFlag);
 
 	// Check if existing device exists
+	HRESULT hr = DD_OK;
 	if (d3d9Device)
 	{
 		// Check if device needs to be reset
@@ -3689,9 +3732,6 @@ HRESULT m_IDirectDrawX::CreateD9Device(char* FunctionName)
 
 	// Create dummy memory (2x larger)
 	m_IDirectDrawSurfaceX::SizeDummySurface(presParams.BackBufferWidth * presParams.BackBufferHeight * sizeof(D3DCOLORVALUE) * 2);
-
-	// Clear FourCC's list after device creation
-	FourCCsList.clear();
 
 	// Reset flags and device settings after device creation or reset
 	AfterDeviceCreation();
@@ -3849,6 +3889,152 @@ HRESULT m_IDirectDrawX::ResetD9Device()
 	return hr;
 }
 
+void m_IDirectDrawX::GetD9Cache()
+{
+	// Get device cache
+	if (d3d9Object && D9Cache.empty())
+	{
+		// Get Caps
+		d3d9Object->GetDeviceCaps(d3d9AdapterIndex, D3DDEVTYPE_HAL, &D9Cache.Caps9);
+
+		// Get supported FourCC types
+		for (const auto& format : FourCCTypes)
+		{
+			if (!IsUnsupportedFormat(format) && SUCCEEDED(d3d9Object->CheckDeviceFormat(d3d9AdapterIndex, D3DDEVTYPE_HAL, D9DisplayFormat, 0, D3DRTYPE_SURFACE, format)))
+			{
+				D9Cache.FourCCsList.push_back(format);
+			}
+		}
+
+		// Get supported zbuffer formats and bit depth
+		for (const auto& entry : zFormats)
+		{
+			for (const auto& Format : entry.formats)
+			{
+				if (SUCCEEDED(d3d9Object->CheckDeviceFormat(d3d9AdapterIndex, D3DDEVTYPE_HAL, D9DisplayFormat, D3DUSAGE_DEPTHSTENCIL, D3DRTYPE_SURFACE, Format)))
+				{
+					D9Cache.dwDeviceZBufferBitDepth |= entry.bitDepthFlag;
+					D9Cache.zFormat.push_back(Format);
+				}
+			}
+		}
+
+		// Get basic texture list
+		{
+			std::vector<D3DFORMAT> TextureList = {
+				D3DFMT_R5G6B5,
+				D3DFMT_X1R5G5B5,
+				D3DFMT_A1R5G5B5,
+				D3DFMT_A4R4G4B4,
+				//D3DFMT_R8G8B8,	// Requires emulation
+				D3DFMT_X8R8G8B8,
+				D3DFMT_A8R8G8B8,
+				D3DFMT_V8U8,
+				D3DFMT_X8L8V8U8,
+				D3DFMT_L6V5U5,
+				D3DFMT_DXT1,
+				D3DFMT_DXT2,
+				D3DFMT_DXT3,
+				D3DFMT_DXT4,
+				D3DFMT_DXT5,
+				D3DFMT_P8,
+				D3DFMT_L8,
+				D3DFMT_A8,
+				D3DFMT_A4L4,
+				D3DFMT_A8L8 };
+
+			// Trim required textures
+			if (Config.DdrawLimitTextureFormats)
+			{
+				// Trim texture list
+				std::vector<D3DFORMAT> TrimTextureList = {
+					D3DFMT_V8U8,       // May be trimmed if normal maps are unused
+					D3DFMT_X8L8V8U8,   // Rare normal map format
+					D3DFMT_L6V5U5,     // Uncommon format
+					D3DFMT_DXT5,       // Newer texture format
+					D3DFMT_P8,         // 8-bit palettized (Direct3D9 deprecated this)
+					D3DFMT_A4L4 };     // Rare grayscale+alpha format
+
+				// Remove trimmed texture from list
+				for (auto it = TextureList.begin(); it != TextureList.end(); )
+				{
+					if (std::find(TrimTextureList.begin(), TrimTextureList.end(), *it) != TrimTextureList.end())
+					{
+						it = TextureList.erase(it); // Remove and update iterator
+					}
+					else
+					{
+						++it; // Move to next element
+					}
+				}
+			}
+			// Add FourCC formats to textures
+			else
+			{
+				for (const auto& format : FourCCTypes)
+				{
+					TextureList.push_back(format);
+				}
+			}
+
+			// Get supported texture formats
+			for (const auto& format : TextureList)
+			{
+				if (SUCCEEDED(d3d9Object->CheckDeviceFormat(d3d9AdapterIndex, D3DDEVTYPE_HAL, D9DisplayFormat, 0, D3DRTYPE_TEXTURE, format)))
+				{
+					D9Cache.TextureFormat.push_back(format);
+				}
+			}
+		}
+	}
+}
+
+void m_IDirectDrawX::GetD9Caps(D3DCAPS9& Caps9)
+{
+	GetD9Cache();
+
+	// Check cache
+	if (D9Cache.empty())
+	{
+		LOG_LIMIT(100, __FUNCTION__ << " Warning: could not get Cap9 cache!");
+	}
+
+	Caps9 = D9Cache.Caps9;
+}
+
+void m_IDirectDrawX::GetD9Caps(D3DCAPS9& Caps9, DWORD& dwDeviceZBufferBitDepth, std::vector<D3DFORMAT>& zFormat)
+{
+	GetD9Cache();
+
+	// Check cache
+	if (D9Cache.empty())
+	{
+		LOG_LIMIT(100, __FUNCTION__ << " Warning: could not get Cap9 cache!");
+	}
+
+	Caps9 = D9Cache.Caps9;
+	dwDeviceZBufferBitDepth = D9Cache.dwDeviceZBufferBitDepth;
+	zFormat = D9Cache.zFormat;
+}
+
+void m_IDirectDrawX::GetD9SupportedTextures(std::vector<D3DFORMAT>& TextureFormat)
+{
+	GetD9Cache();
+
+	// Check cache
+	if (D9Cache.empty())
+	{
+		LOG_LIMIT(100, __FUNCTION__ << " Warning: could not get Cap9 cache!");
+	}
+
+	TextureFormat = D9Cache.TextureFormat;
+}
+
+void m_IDirectDrawX::GetDefaultViewport(D3DVIEWPORT9& Viewport)
+{
+	Viewport = DefaultViewport;
+}
+
 void m_IDirectDrawX::GetDefaultStates()
 {
 	d3d9Device->GetViewport(&DefaultViewport);
@@ -3864,14 +4050,6 @@ void m_IDirectDrawX::GetDefaultStates()
 		{
 			d3d9Device->CreateStateBlock(D3DSBT_ALL, &DefaultStateBlock);
 		}
-	}
-}
-
-void m_IDirectDrawX::GetDefaultViewport(D3DVIEWPORT9* pViewport)
-{
-	if (pViewport)
-	{
-		*pViewport = DefaultViewport;
 	}
 }
 
@@ -4045,6 +4223,15 @@ HRESULT m_IDirectDrawX::CreateD9Object()
 			LOG_LIMIT(100, __FUNCTION__ << " Error: d3d9 object not setup!");
 			return DDERR_GENERIC;
 		}
+
+		// Get object cache
+		GetD9Cache();
+
+		// Check cache
+		if (D9Cache.empty())
+		{
+			LOG_LIMIT(100, __FUNCTION__ << " Warning: could not get Cap9 cache!");
+		}
 	}
 
 	return D3D_OK;
@@ -4132,7 +4319,7 @@ HRESULT m_IDirectDrawX::SetRenderTargetSurface(m_IDirectDrawSurfaceX* lpSurface)
 	HRESULT hr = D3D_OK;
 	if (d3d9Device)
 	{
-		LPDIRECT3DSURFACE9 pSurfaceD9 = RenderTargetSurface->GetD3d9Surface();
+		LPDIRECT3DSURFACE9 pSurfaceD9 = RenderTargetSurface->GetD9Surface();
 		if (pSurfaceD9)
 		{
 			hr = d3d9Device->SetRenderTarget(0, pSurfaceD9);
@@ -4177,7 +4364,7 @@ HRESULT m_IDirectDrawX::SetDepthStencilSurface(m_IDirectDrawSurfaceX* lpSurface)
 
 		if (d3d9Device)
 		{
-			LPDIRECT3DSURFACE9 pSurfaceD9 = DepthStencilSurface->GetD3d9Surface();
+			LPDIRECT3DSURFACE9 pSurfaceD9 = DepthStencilSurface->GetD9Surface();
 			if (pSurfaceD9)
 			{
 				d3d9Device->SetRenderState(D3DRS_ZENABLE, D3DZB_TRUE);
@@ -4422,6 +4609,9 @@ void m_IDirectDrawX::ReleaseD9Object()
 			Logging::Log() << __FUNCTION__ << " Error: there is still a reference to 'd3d9Object' " << ref;
 		}
 		d3d9Object = nullptr;
+
+		// Clear cache
+		D9Cache.clear();
 	}
 }
 
@@ -5032,7 +5222,7 @@ HRESULT m_IDirectDrawX::DrawPrimarySurface(m_IDirectDrawSurfaceX* pPrimarySurfac
 	if (!pDisplayTexture)
 	{
 		// Get surface texture
-		pDisplayTexture = pPrimarySurface->GetD3d9Texture(false);
+		pDisplayTexture = pPrimarySurface->GetD9Texture(false);
 		if (!pDisplayTexture)
 		{
 			LOG_LIMIT(100, __FUNCTION__ << " Error: failed to get surface texture!");
@@ -5063,7 +5253,7 @@ HRESULT m_IDirectDrawX::DrawPrimarySurface(m_IDirectDrawSurfaceX* pPrimarySurfac
 	if (IsUsingPalette)
 	{
 		// Get palette texture
-		LPDIRECT3DTEXTURE9 PaletteTexture = pPrimarySurface->GetD3d9PaletteTexture();
+		LPDIRECT3DTEXTURE9 PaletteTexture = pPrimarySurface->GetD9PaletteTexture();
 
 		// Set palette texture
 		if (PaletteTexture && CreatePalettePixelShader())
@@ -5161,7 +5351,7 @@ HRESULT m_IDirectDrawX::CopyPrimarySurface(m_IDirectDrawSurfaceX* pPrimarySurfac
 	}
 
 	// Get backbuffer render target
-	IDirect3DSurface9* pRenderTarget = pPrimarySurface->GetD3d9Surface();
+	IDirect3DSurface9* pRenderTarget = pPrimarySurface->GetD9Surface();
 	if (!pRenderTarget)
 	{
 		LOG_LIMIT(100, __FUNCTION__ << " Error: no render target on primary surface!");
@@ -5183,7 +5373,7 @@ HRESULT m_IDirectDrawX::CopyPrimarySurface(m_IDirectDrawSurfaceX* pPrimarySurfac
 
 	// Get source rect
 	RECT* pSrcRect = nullptr;
-	RECT SrcRect = { 0, 0, (LONG)pPrimarySurface->GetD3d9Width(), (LONG)pPrimarySurface->GetD3d9Height() };
+	RECT SrcRect = { 0, 0, (LONG)pPrimarySurface->GetD9Width(), (LONG)pPrimarySurface->GetD9Height() };
 	if (!ExclusiveMode && hWnd && !IsIconic(hWnd))
 	{
 		// Clip rect
@@ -5281,7 +5471,7 @@ HRESULT m_IDirectDrawX::PresentScene(m_IDirectDrawSurfaceX* pPrimarySurface, REC
 	d3d9Device->BeginScene();
 
 	// Copy or draw primary surface before presenting
-	if (IsPrimaryRenderTarget() && !pPrimarySurface->GetD3d9Texture(false))
+	if (IsPrimaryRenderTarget() && !pPrimarySurface->GetD9Texture(false))
 	{
 		if (IsGammaSet && GammaControlInterface)
 		{
@@ -5422,7 +5612,7 @@ DWORD WINAPI m_IDirectDrawX::PresentThreadFunction(LPVOID)
 					{
 						ScopedLeaveCriticalSection ThreadLockPELeave(pecs);
 
-						if (pPrimarySurface->GetD3d9Texture(false))
+						if (pPrimarySurface->GetD9Texture(false))
 						{
 							// Begin scene
 							d3d9Device->BeginScene();
@@ -5600,6 +5790,11 @@ HRESULT m_IDirectDrawX::Present(RECT* pSourceRect, RECT* pDestRect)
 // ******************************
 // External static functions
 // ******************************
+
+LPDIRECT3D9 m_IDirectDrawX::GetD9Object()
+{
+	return d3d9Object;
+}
 
 bool m_IDirectDrawX::CheckDirectDrawXInterface(void* pInterface)
 {

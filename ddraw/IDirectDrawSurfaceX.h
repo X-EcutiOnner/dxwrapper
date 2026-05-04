@@ -356,7 +356,7 @@ private:
 	bool CanUseRenderTargetSurface() const { return (!surface.UsingShadowSurface || surface.LastShadowUSN == surface.SurfaceUSN); }
 	bool IsLockedFromOtherThread(DWORD MipMapLevel);
 	bool IsDummyMipMap(DWORD MipMapLevel) { return (MipMapLevel > MaxMipMapLevel || ((MipMapLevel & ~DXW_IS_MIPMAP_DUMMY) - 1 < MipMaps.size() && MipMaps[(MipMapLevel & ~DXW_IS_MIPMAP_DUMMY) - 1].IsDummy)); }
-	DWORD GetD3d9MipMapLevel(DWORD MipMapLevel) const { return min(MipMapLevel, MaxMipMapLevel); }
+	DWORD GetD9MipMapLevel(DWORD MipMapLevel) const { return min(MipMapLevel, MaxMipMapLevel); }
 	DWORD GetWidth() const { return surfaceDesc2.dwWidth; }
 	DWORD GetHeight() const { return surfaceDesc2.dwHeight; }
 	DDSCAPS2 GetSurfaceCaps() const { return surfaceDesc2.ddsCaps; }
@@ -599,14 +599,14 @@ public:
 		return false;
 	}
 	m_IDirectDrawSurfaceX* GetAttachedDepthStencil();
-	LPDIRECT3DSURFACE9 GetD3d9Surface();
-	LPDIRECT3DTEXTURE9 GetD3d9DrawTexture();
-	LPDIRECT3DTEXTURE9 GetD3d9Texture(bool InterfaceCheck = true);
+	LPDIRECT3DSURFACE9 GetD9Surface();
+	LPDIRECT3DTEXTURE9 GetD9DrawTexture();
+	LPDIRECT3DTEXTURE9 GetD9Texture(bool InterfaceCheck = true);
 	HRESULT GenerateMipMapLevels();
-	DWORD GetD3d9Width() const { return surface.Width; }
-	DWORD GetD3d9Height() const { return surface.Height; }
-	D3DFORMAT GetD3d9Format() const { return surface.Format; }
-	LPDIRECT3DTEXTURE9 GetD3d9PaletteTexture() const { return primary.PaletteTexture; }
+	DWORD GetD9Width() const { return surface.Width; }
+	DWORD GetD9Height() const { return surface.Height; }
+	D3DFORMAT GetD9Format() const { return surface.Format; }
+	LPDIRECT3DTEXTURE9 GetD9PaletteTexture() const { return primary.PaletteTexture; }
 	m_IDirect3DTextureX* GetAttachedTexture() { return attached3DTexture; }
 	void ClearUsing3DFlag();
 	HRESULT GetPresentWindowRect(LPRECT pRect, RECT& DestRect);

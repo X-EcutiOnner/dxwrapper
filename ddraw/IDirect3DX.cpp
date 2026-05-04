@@ -19,18 +19,6 @@
 #include "Utils\Utils.h"
 
 namespace {
-	struct ZFormatEntry
-	{
-		DWORD bitDepthFlag;
-		std::initializer_list<D3DFORMAT> formats;
-	};
-
-	const ZFormatEntry zFormats[] = {
-		{ DDBD_16, { D3DFMT_D16, D3DFMT_D15S1 } },
-		{ DDBD_24, { D3DFMT_D24S8, D3DFMT_D24X8, D3DFMT_D24X4S4 } },
-		{ DDBD_32, { D3DFMT_D32 } },
-	};
-
 	bool GetD3DPath = true;
 	char D3DImPath[MAX_PATH] = { '\0' };
 	char D3DIm700Path[MAX_PATH] = { '\0' };
@@ -824,43 +812,30 @@ HRESULT m_IDirect3DX::EnumZBufferFormats(REFCLSID riidDevice, LPD3DENUMPIXELFORM
 			return DDERR_INVALIDOBJECT;
 		}
 
-		// Get d3d9Object
-		IDirect3D9* d3d9Object = ddrawParent->GetDirectD9Object();
+		// Update Cap9 cache
+		GetCap9Cache();
+
+		// Check cache
+		if (D9Cache.empty())
+		{
+			LOG_LIMIT(100, __FUNCTION__ << " Error: could not get Cap9 cache!");
+			return DDERR_INVALIDOBJECT;
+		}
 
 		if (riidDevice == IID_IDirect3DRGBDevice || riidDevice == IID_IDirect3DMMXDevice || riidDevice == IID_IDirect3DRefDevice ||
-			riidDevice == IID_IDirect3DHALDevice || riidDevice == IID_IDirect3DTnLHalDevice || riidDevice == GUID_NULL)
+			riidDevice == IID_IDirect3DHALDevice || riidDevice == IID_IDirect3DTnLHalDevice || riidDevice == GUID_NULL) 
 		{
-			D3DDEVICEDESC7 Desc7 = {};
-			D3DCAPS9 Caps9;
-			ZeroMemory(&Caps9, sizeof(D3DCAPS9));
-			Caps9.DeviceType = (riidDevice == IID_IDirect3DRGBDevice || riidDevice == IID_IDirect3DMMXDevice || riidDevice == IID_IDirect3DRefDevice) ? D3DDEVTYPE_REF :
-				(riidDevice == IID_IDirect3DHALDevice) ? D3DDEVTYPE_HAL :
-				(riidDevice == IID_IDirect3DTnLHalDevice) ? (D3DDEVTYPE)D3DDEVTYPE_TNLHAL :
-				D3DDEVTYPE_NULLREF;
-
-			ConvertDeviceDesc(Desc7, Caps9);
-			Desc7.dwDeviceZBufferBitDepth = dwDeviceZBufferBitDepthCache;
-
-			DDPIXELFORMAT PixelFormat = {};
-			PixelFormat.dwSize = sizeof(DDPIXELFORMAT);
-
 			// Send supported formats to callback function
-			for (const auto& entry : zFormats)
+			for (const auto& Format : D9Cache.zFormat)
 			{
-				if (Desc7.dwDeviceZBufferBitDepth & entry.bitDepthFlag)
-				{
-					for (const auto& Format : entry.formats)
-					{
-						if (SUCCEEDED(d3d9Object->CheckDeviceFormat(ddrawParent->GetAdapterIndex(), D3DDEVTYPE_HAL, D9DisplayFormat, D3DUSAGE_DEPTHSTENCIL, D3DRTYPE_SURFACE, Format)))
-						{
-							SetPixelDisplayFormat(Format, PixelFormat);
+				DDPIXELFORMAT PixelFormat = {};
+				PixelFormat.dwSize = sizeof(DDPIXELFORMAT);
 
-							if (PixelFormat.dwFlags && lpEnumCallback(&PixelFormat, lpContext) == DDENUMRET_CANCEL)
-							{
-								return D3D_OK;
-							}
-						}
-					}
+				SetPixelDisplayFormat(Format, PixelFormat);
+
+				if (PixelFormat.dwFlags && lpEnumCallback(&PixelFormat, lpContext) == DDENUMRET_CANCEL)
+				{
+					return D3D_OK;
 				}
 			}
 			return D3D_OK;
@@ -937,7 +912,7 @@ HRESULT m_IDirect3DX::EnumDevices7(LPD3DENUMDEVICESCALLBACK7 lpEnumDevicesCallba
 		GetCap9Cache();
 
 		// Check cache
-		if (Cap9Cache.empty())
+		if (D9Cache.empty())
 		{
 			LOG_LIMIT(100, __FUNCTION__ << " Error: could not get Cap9 cache!");
 			return DDERR_INVALIDOBJECT;
@@ -949,75 +924,75 @@ HRESULT m_IDirect3DX::EnumDevices7(LPD3DENUMDEVICESCALLBACK7 lpEnumDevicesCallba
 			(DirectXVersion == 3) ? D3DDEVICEDESC6_SIZE : sizeof(D3DDEVICEDESC);
 
 		// Loop through all adapters
-		for (auto& entry : Cap9Cache)
+		for (D3DDEVTYPE Type : { D3DDEVTYPE_REF, D3DDEVTYPE_HAL, (D3DDEVTYPE)D3DDEVTYPE_TNLHAL })
 		{
-			for (D3DDEVTYPE Type : { D3DDEVTYPE_REF, D3DDEVTYPE_HAL, (D3DDEVTYPE)D3DDEVTYPE_TNLHAL })
+			// Get Device Caps
+			D3DCAPS9 Caps9 = D9Cache.Caps9;
+
+			// Convert device desc
+			D3DDEVICEDESC7 DeviceDesc7;
+			Caps9.DeviceType = Type;
+			ConvertDeviceDesc(DeviceDesc7, Caps9);
+			DeviceDesc7.dwDeviceZBufferBitDepth = D9Cache.dwDeviceZBufferBitDepth;
+
+			LPSTR lpDescription = nullptr, lpName = nullptr;
+
+			switch ((DWORD)Type)
 			{
-				// Get Device Caps
-				D3DCAPS9 Caps9 = (Type == D3DDEVTYPE_REF) ? entry.REF : entry.HAL;
+			case D3DDEVTYPE_REF:
+				lpName = "RGB Emulation";
+				lpDescription = "Microsoft Direct3D RGB Software Emulation";
+				break;
 
-				// Convert device desc
-				D3DDEVICEDESC7 DeviceDesc7;
-				Caps9.DeviceType = Type;
-				ConvertDeviceDesc(DeviceDesc7, Caps9);
-				DeviceDesc7.dwDeviceZBufferBitDepth = dwDeviceZBufferBitDepthCache;
+			case D3DDEVTYPE_HAL:
+				lpName = "Direct3D HAL";
+				lpDescription = "Microsoft Direct3D Hardware acceleration through Direct3D HAL";
+				break;
 
+			default:
+			case D3DDEVTYPE_TNLHAL:
+				lpName = "Direct3D T&L HAL";
+				lpDescription = "Microsoft Direct3D Hardware Transform and Lighting acceleration capable device";
+				break;
+			}
+
+			char Desc[MAX_PATH] = {};
+			char Name[MAX_PATH] = {};
+
+			strcpy_s(Desc, lpDescription);
+			strcpy_s(Name, lpName);
+
+			if (lpEnumDevicesCallback)
+			{
+				// Get device GUID
 				GUID deviceGUID = DeviceDesc7.deviceGUID;
-				LPSTR lpDescription = nullptr, lpName = nullptr;
 
 				// For conversion
 				D3DDEVICEDESC D3DDRVDevDesc = {}, D3DSWDevDesc = {};
 				D3DDRVDevDesc.dwSize = sizeof(D3DDEVICEDESC);
 				D3DSWDevDesc.dwSize = sizeof(D3DDEVICEDESC);
 
-				char Desc[MAX_PATH] = {};
-				char Name[MAX_PATH] = {};
+				// Get D3DDRVDevDesc data
+				ConvertDeviceDesc(D3DDRVDevDesc, DeviceDesc7);
 
-				switch ((DWORD)Type)
+				// Get D3DSWDevDesc data (D3DDEVTYPE_REF)
+				Caps9.DeviceType = D3DDEVTYPE_REF;
+				ConvertDeviceDesc(DeviceDesc7, Caps9);
+				ConvertDeviceDesc(D3DSWDevDesc, DeviceDesc7);
+
+				D3DDRVDevDesc.dwSize = DevSize;
+				D3DSWDevDesc.dwSize = DevSize;
+
+				if (lpEnumDevicesCallback(&deviceGUID, Desc, Name, &D3DDRVDevDesc, &D3DSWDevDesc, lpUserArg) == DDENUMRET_CANCEL)
 				{
-				case D3DDEVTYPE_REF:
-					lpName = "RGB Emulation";
-					lpDescription = "Microsoft Direct3D RGB Software Emulation";
-					break;
-				case D3DDEVTYPE_HAL:
-					lpName = "Direct3D HAL";
-					lpDescription = "Microsoft Direct3D Hardware acceleration through Direct3D HAL";
-					break;
-				default:
-				case D3DDEVTYPE_TNLHAL:
-					lpName = "Direct3D T&L HAL";
-					lpDescription = "Microsoft Direct3D Hardware Transform and Lighting acceleration capable device";
-					break;
+					return D3D_OK;
 				}
-
-				strcpy_s(Desc, lpDescription);
-				strcpy_s(Name, lpName);
-
-				if (lpEnumDevicesCallback)
+			}
+			else if (lpEnumDevicesCallback7)
+			{
+				if (lpEnumDevicesCallback7(Desc, Name, &DeviceDesc7, lpUserArg) == DDENUMRET_CANCEL)
 				{
-					// Get D3DSWDevDesc data (D3DDEVTYPE_REF)
-					ConvertDeviceDesc(D3DSWDevDesc, DeviceDesc7);
-
-					// Get D3DDRVDevDesc data (D3DDEVTYPE_HAL)
-					Caps9 = entry.HAL;
-					Caps9.DeviceType = D3DDEVTYPE_HAL;
-					ConvertDeviceDesc(DeviceDesc7, Caps9);
-					ConvertDeviceDesc(D3DDRVDevDesc, DeviceDesc7);
-
-					D3DDRVDevDesc.dwSize = DevSize;
-					D3DSWDevDesc.dwSize = DevSize;
-
-					if (lpEnumDevicesCallback(&deviceGUID, Desc, Name, &D3DDRVDevDesc, &D3DSWDevDesc, lpUserArg) == DDENUMRET_CANCEL)
-					{
-						return D3D_OK;
-					}
-				}
-				else if (lpEnumDevicesCallback7)
-				{
-					if (lpEnumDevicesCallback7(Desc, Name, &DeviceDesc7, lpUserArg) == DDENUMRET_CANCEL)
-					{
-						return D3D_OK;
-					}
+					return D3D_OK;
 				}
 			}
 		}
@@ -1119,42 +1094,7 @@ void m_IDirect3DX::GetCap9Cache()
 	// Check for device
 	if (ddrawParent)
 	{
-		// Get d3d9Object
-		IDirect3D9* d3d9Object = ddrawParent->GetDirectD9Object();
-		if (d3d9Object)
-		{
-			UINT AdapterCount = d3d9Object->GetAdapterCount();
-			if (AdapterCount)
-			{
-				Cap9Cache.clear();
-
-				// Loop through all adapters
-				for (UINT i = 0; i < AdapterCount; i++)
-				{
-					// Get Device Caps
-					DUALCAP9 DCaps9;
-					if (SUCCEEDED(d3d9Object->GetDeviceCaps(i, D3DDEVTYPE_REF, &DCaps9.REF)) && SUCCEEDED(d3d9Object->GetDeviceCaps(i, D3DDEVTYPE_HAL, &DCaps9.HAL)))
-					{
-						Cap9Cache.push_back(DCaps9);
-					}
-				}
-			}
-
-			dwDeviceZBufferBitDepthCache = 0;
-
-			// Get supported zbuffer format bit depth
-			for (const auto& entry : zFormats)
-			{
-				for (const auto& Format : entry.formats)
-				{
-					if (SUCCEEDED(d3d9Object->CheckDeviceFormat(ddrawParent->GetAdapterIndex(), D3DDEVTYPE_HAL, D9DisplayFormat, D3DUSAGE_DEPTHSTENCIL, D3DRTYPE_SURFACE, Format)))
-					{
-						dwDeviceZBufferBitDepthCache |= entry.bitDepthFlag;
-						break;
-					}
-				}
-			}
-		}
+		ddrawParent->GetD9Caps(D9Cache.Caps9, D9Cache.dwDeviceZBufferBitDepth, D9Cache.zFormat);
 	}
 }
 

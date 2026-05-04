@@ -899,17 +899,28 @@ static HRESULT DirectDrawEnumerateHandler(LPVOID lpCallback, LPVOID lpContext, D
 		return DDERR_INVALIDPARAMS;
 	}
 
-	// Declare Direct3DCreate9
-	DEFINE_STATIC_PROC_ADDRESS(Direct3DCreate9Proc, Direct3DCreate9, Direct3DCreate9_out);
+	ScopedCriticalSection ThreadLockDD(DdrawWrapper::GetDDCriticalSection());
 
-	if (!Direct3DCreate9)
-	{
-		LOG_LIMIT(100, __FUNCTION__ << " Error: failed to get 'Direct3DCreate9' ProcAddress of d3d9.dll!");
-		return DDERR_UNSUPPORTED;
-	}
+	// Get existing Direct3D9 object
+	IDirect3D9* d3d9Object = m_IDirectDrawX::GetD9Object();
+	ComPtr<IDirect3D9> ComObjectD9;
 
 	// Create Direct3D9 object
-	ComPtr<IDirect3D9> d3d9Object(Direct3DCreate9(D3D_SDK_VERSION));
+	if (!d3d9Object)
+	{
+		// Declare Direct3DCreate9
+		DEFINE_STATIC_PROC_ADDRESS(Direct3DCreate9Proc, Direct3DCreate9, Direct3DCreate9_out);
+
+		if (!Direct3DCreate9)
+		{
+			LOG_LIMIT(100, __FUNCTION__ << " Error: failed to get 'Direct3DCreate9' ProcAddress of d3d9.dll!");
+			return DDERR_UNSUPPORTED;
+		}
+
+		*ComObjectD9.GetAddressOf() = Direct3DCreate9(D3D_SDK_VERSION);
+
+		d3d9Object = ComObjectD9.Get();
+	}
 
 	// Error handling
 	if (!d3d9Object)

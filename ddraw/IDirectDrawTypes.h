@@ -239,6 +239,18 @@ struct TRIBYTE
 	}
 };
 
+struct ZFormatEntry
+{
+	DWORD bitDepthFlag;
+	std::initializer_list<D3DFORMAT> formats;
+};
+
+const ZFormatEntry zFormats[] = {
+	{ DDBD_16, { D3DFMT_D16 } },
+	{ DDBD_24, { D3DFMT_D24S8, D3DFMT_D24X8 } },
+	{ DDBD_32, { D3DFMT_D32 } },
+};
+
 static constexpr DWORD DDS_MAGIC				= 0x20534444; // "DDS "
 static constexpr DWORD DDS_HEADER_SIZE			= sizeof(DWORD) + sizeof(DDS_HEADER);
 static constexpr DWORD DDS_HEADER_FLAGS_TEXTURE	= 0x00001007; // DDSD_CAPS | DDSD_HEIGHT | DDSD_WIDTH | DDSD_PIXELFORMAT 

@@ -254,9 +254,15 @@ public:
 	void GetViewportResolution(DWORD& Width, DWORD& Height);
 	void GetDisplayPixelFormat(DDPIXELFORMAT& ddpfPixelFormat, DWORD BPP);
 
-	// State block functions
+	// Cache Caps
+	void GetD9Cache();
+	void GetD9Caps(D3DCAPS9& Caps9);
+	void GetD9Caps(D3DCAPS9& Caps9, DWORD& dwDeviceZBufferBitDepth, std::vector<D3DFORMAT>& zFormat);
+	void GetD9SupportedTextures(std::vector<D3DFORMAT>& TextureFormat);
+
+	// Default State block and Viewport functions
+	void GetDefaultViewport(D3DVIEWPORT9& Viewport);
 	void GetDefaultStates();
-	void GetDefaultViewport(D3DVIEWPORT9* pViewport);
 	void ApplyStateBlock();
 
 	// Surface vector functions
@@ -312,6 +318,7 @@ public:
 	HRESULT PresentScene(m_IDirectDrawSurfaceX* pPrimarySurface, RECT* pRect);
 
 	// External static functions
+	static LPDIRECT3D9 GetD9Object();
 	static bool CheckDirectDrawXInterface(void* pInterface);
 	static void TriggerDeviceReset(HWND hWnd);
 	static void CheckFixWindowPos(HWND hWnd, WINDOWPOS* wPos);

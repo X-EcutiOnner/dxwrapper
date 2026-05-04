@@ -3979,83 +3979,22 @@ HRESULT m_IDirect3DDeviceX::EnumTextureFormats(LPD3DENUMPIXELFORMATSCALLBACK lpd
 			return DDERR_INVALIDOBJECT;
 		}
 
-		LPDIRECT3D9 d3d9Object = ddrawParent->GetDirectD9Object();
+		const bool IsDirectDraw8bit = (ddrawParent->GetDisplayBPP(ddrawParent->GetHMonitor()) == 8);
 
-		if (!d3d9Object)
-		{
-			LOG_LIMIT(100, __FUNCTION__ << " Error: failed to get d3d9 object!");
-			return DDERR_GENERIC;
-		}
-
-		// Get texture list
-		std::vector<D3DFORMAT> TextureList = {
-			D3DFMT_R5G6B5,
-			D3DFMT_X1R5G5B5,
-			D3DFMT_A1R5G5B5,
-			D3DFMT_A4R4G4B4,
-			//D3DFMT_R8G8B8,	// Requires emulation
-			D3DFMT_X8R8G8B8,
-			D3DFMT_A8R8G8B8,
-			D3DFMT_V8U8,
-			D3DFMT_X8L8V8U8,
-			D3DFMT_L6V5U5,
-			D3DFMT_DXT1,
-			D3DFMT_DXT2,
-			D3DFMT_DXT3,
-			D3DFMT_DXT4,
-			D3DFMT_DXT5,
-			D3DFMT_P8,
-			D3DFMT_L8,
-			D3DFMT_A8,
-			D3DFMT_A4L4,
-			D3DFMT_A8L8 };
-
-		// If textures are being trimmed
-		if (Config.DdrawLimitTextureFormats)
-		{
-			// Trim texture list
-			std::vector<D3DFORMAT> TrimTextureList = {
-				D3DFMT_V8U8,       // May be trimmed if normal maps are unused
-				D3DFMT_X8L8V8U8,   // Rare normal map format
-				D3DFMT_L6V5U5,     // Uncommon format
-				D3DFMT_DXT5,       // Newer texture format
-				D3DFMT_P8,         // 8-bit palettized (Direct3D9 deprecated this)
-				D3DFMT_A4L4 };     // Rare grayscale+alpha format
-
-			// Remove trimmed texture from list
-			for (auto it = TextureList.begin(); it != TextureList.end(); )
-			{
-				if (std::find(TrimTextureList.begin(), TrimTextureList.end(), *it) != TrimTextureList.end())
-				{
-					it = TextureList.erase(it); // Remove and update iterator
-				}
-				else
-				{
-					++it; // Move to next element
-				}
-			}
-		}
-		// Add FourCCs to texture list
-		else
-		{
-			for (D3DFORMAT format : FourCCTypes)
-			{
-				TextureList.push_back(format);
-			}
-		}
+		// Get cached texture formats from ddrawParent
+		std::vector<D3DFORMAT> TextureFormat;
+		ddrawParent->GetD9SupportedTextures(TextureFormat);
 
 		// Check for supported textures
-		DDPIXELFORMAT ddpfPixelFormat = {};
-		ddpfPixelFormat.dwSize = sizeof(DDPIXELFORMAT);
-
-		bool IsDirectDraw8bit = (ddrawParent->GetDisplayBPP(ddrawParent->GetHMonitor()) == 8);
-
-		for (D3DFORMAT format : TextureList)
+		for (const auto& format : TextureFormat)
 		{
-			if (!IsUnsupportedFormat(format) && ((format == D3DFMT_P8 && IsDirectDraw8bit) ||
-				SUCCEEDED(d3d9Object->CheckDeviceFormat(ddrawParent->GetAdapterIndex(), D3DDEVTYPE_HAL, D3DFMT_X8R8G8B8, 0, D3DRTYPE_TEXTURE, format))))
+			if (!IsUnsupportedFormat(format) && (format != D3DFMT_P8 || (format == D3DFMT_P8 && IsDirectDraw8bit)))
 			{
+				DDPIXELFORMAT ddpfPixelFormat = {};
+				ddpfPixelFormat.dwSize = sizeof(DDPIXELFORMAT);
+
 				SetPixelDisplayFormat(format, ddpfPixelFormat);
+
 				if (lpd3dEnumPixelProc(&ddpfPixelFormat, lpArg) == DDENUMRET_CANCEL)
 				{
 					return D3D_OK;
@@ -4407,7 +4346,7 @@ HRESULT m_IDirect3DDeviceX::SetTexture(DWORD dwStage, LPDIRECTDRAWSURFACE7 lpSur
 				return DDERR_INVALIDPARAMS;
 			}
 
-			IDirect3DTexture9* pTexture9 = lpDDSrcSurfaceX->GetD3d9Texture();
+			IDirect3DTexture9* pTexture9 = lpDDSrcSurfaceX->GetD9Texture();
 			if (!pTexture9)
 			{
 				LOG_LIMIT(100, __FUNCTION__ << " Error: could not get texture!");
@@ -5051,13 +4990,6 @@ void* m_IDirect3DDeviceX::GetWrapperInterfaceX(DWORD DirectXVersion)
 	}
 	LOG_LIMIT(100, __FUNCTION__ << " Error: wrapper interface version not found: " << DirectXVersion);
 	return nullptr;
-}
-
-LPDIRECT3DDEVICE9* m_IDirect3DDeviceX::GetD3d9Device()
-{
-	CheckInterface(__FUNCTION__, true);
-
-	return d3d9Device;
 }
 
 HRESULT m_IDirect3DDeviceX::SetViewportData(VIEWPORTINFO& Viewport)
@@ -6496,8 +6428,8 @@ void m_IDirect3DDeviceX::SetDefaults()
 	SetD9RenderState(D3DRS_DEPTHBIAS, *(DWORD*)&Value);
 
 	// Get default structures
-	(*d3d9Device)->GetDeviceCaps(&Caps9);
-	ddrawParent->GetDefaultViewport(&DefaultViewport);
+	ddrawParent->GetD9Caps(Caps9);
+	ddrawParent->GetDefaultViewport(DefaultViewport);
 
 	// Set defaults
 	DeviceStates.Viewport.FixedView = DefaultViewport;
@@ -6628,7 +6560,7 @@ void m_IDirect3DDeviceX::SetDrawStates(DWORD dwVertexTypeDesc, DWORD& dwFlags, D
 		// Set textures
 		if (CurrentTextureSurfaceX[x])
 		{
-			IDirect3DTexture9* pTexture9 = CurrentTextureSurfaceX[x]->GetD3d9Texture();
+			IDirect3DTexture9* pTexture9 = CurrentTextureSurfaceX[x]->GetD9Texture();
 			if (pTexture9)
 			{
 				(*d3d9Device)->SetTexture(x, pTexture9);
@@ -6649,10 +6581,10 @@ void m_IDirect3DDeviceX::SetDrawStates(DWORD dwVertexTypeDesc, DWORD& dwFlags, D
 		// Check for color key alpha texture
 		for (UINT x = 0; x < D3DHAL_TSS_MAXSTAGES; x++)
 		{
-			if (CurrentTextureSurfaceX[x] && CurrentTextureSurfaceX[x]->IsColorKeyTexture() && CurrentTextureSurfaceX[x]->GetD3d9DrawTexture())
+			if (CurrentTextureSurfaceX[x] && CurrentTextureSurfaceX[x]->IsColorKeyTexture() && CurrentTextureSurfaceX[x]->GetD9DrawTexture())
 			{
 				dwFlags |= D3DDP_DXW_ALPHACOLORKEY;
-				(*d3d9Device)->SetTexture(x, CurrentTextureSurfaceX[x]->GetD3d9DrawTexture());
+				(*d3d9Device)->SetTexture(x, CurrentTextureSurfaceX[x]->GetD9DrawTexture());
 			}
 		}
 		if (dwFlags & D3DDP_DXW_ALPHACOLORKEY)

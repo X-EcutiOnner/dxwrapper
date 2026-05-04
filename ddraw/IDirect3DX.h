@@ -28,13 +28,18 @@ private:
 	};
 	std::vector<D3DDEVICELIST> D3DDeviceList;
 
-	// Cache Cap9
-	struct DUALCAP9 {
-		D3DCAPS9 REF = {};
-		D3DCAPS9 HAL = {};
+	// D9Cache
+	struct D9CAPS_CACHE {
+		D3DCAPS9 Caps9 = {};
+		DWORD dwDeviceZBufferBitDepth = 0;
+		std::vector<D3DFORMAT> zFormat;
+
+		bool empty() const
+		{
+			return Caps9.DeviceType == 0;
+		}
 	};
-	std::vector<DUALCAP9> Cap9Cache;
-	DWORD dwDeviceZBufferBitDepthCache = 0;
+	D9CAPS_CACHE D9Cache;
 
 	// Light array
 	std::vector<m_IDirect3DLight*> LightList;

@@ -331,7 +331,7 @@ BOOL APIENTRY DllMain(HMODULE hModule, DWORD fdwReason, LPVOID lpReserved)
 			// Add the exception handler to the end of the chain if available
 			if (add_handler)
 			{
-				g_exception_handle = add_handler(0, Utils::Vectored_Exception_Handler);  // Set to 0 for end of chain
+				g_exception_handle = add_handler(0, Utils::VectoredExceptionHandler);  // Set to 0 for end of chain
 			}
 		}
 
@@ -420,10 +420,6 @@ BOOL APIENTRY DllMain(HMODULE hModule, DWORD fdwReason, LPVOID lpReserved)
 		if (Config.DisableGameUX)
 		{
 			Utils::DisableGameUX();
-		}
-		if (Config.HandleExceptions)
-		{
-			Utils::SetCustomExceptionHandler();
 		}
 
 		// Hook CoCreateInstance
@@ -871,12 +867,6 @@ BOOL APIENTRY DllMain(HMODULE hModule, DWORD fdwReason, LPVOID lpReserved)
 		{
 			// Use WndProc for disabling so it can be done from the foreground window
 			WndProc::DisableForcedKeyboardLayout();
-		}
-
-		// Unload exception handler
-		if (Config.HandleExceptions)
-		{
-			Utils::RemoveCustomExceptionHandler();
 		}
 
 		// Remove the exception handler if it was added

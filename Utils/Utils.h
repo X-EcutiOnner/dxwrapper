@@ -63,9 +63,7 @@ namespace Utils
 	DWORD WINAPI winmm_timeGetTime();
 	MMRESULT WINAPI winmm_timeGetSystemTime(LPMMTIME pmmt, UINT cbmmt);
 	void MarkAsValidCallTarget(void* allocationBase, size_t regionSize, size_t entryOffset);
-	void SetCustomExceptionHandler();
-	void RemoveCustomExceptionHandler();
-	LONG WINAPI Vectored_Exception_Handler(EXCEPTION_POINTERS* ExceptionInfo);
+	LONG WINAPI VectoredExceptionHandler(EXCEPTION_POINTERS* ExceptionInfo);
 	void AddHandleToVector(HMODULE dll, const char *name);
 	bool CheckIfSystemModuleLoaded(const char* moduleName);
 	HMODULE LoadLibrary(const char *dllname, bool EnableLogging = false);

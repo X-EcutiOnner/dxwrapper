@@ -30,6 +30,7 @@
 #include "Dllmain\Dllmain.h"
 #include "External\Hooking\Disasm.h"
 #include "External\Hooking\Hook.h"
+#include "Settings\Settings.h"
 #include "Logging\Logging.h"
 
 #ifndef CREATE_MINIDUMP
@@ -49,11 +50,6 @@ namespace Utils
 		const PMINIDUMP_USER_STREAM_INFORMATION,
 		const PMINIDUMP_CALLBACK_INFORMATION
 		);
-
-	// Forward declarations
-	LONG WINAPI CustomUnhandledExceptionFilter(LPEXCEPTION_POINTERS exceptionInfo);
-	void SetCustomExceptionHandler();
-	void RemoveCustomExceptionHandler();
 }
 
 static void WriteMiniDump(EXCEPTION_POINTERS* ExceptionInfo)
@@ -104,11 +100,7 @@ static void WriteMiniDump(EXCEPTION_POINTERS* ExceptionInfo)
 	}
 
 	// Log event
-	__try
-	{
-		Logging::LogFormat("Attempting to create dump file: %s", dumpPath);
-	}
-	__except (EXCEPTION_EXECUTE_HANDLER) {}
+	Logging::LogFormat("Attempting to create dump file: %s", dumpPath);
 
 	HANDLE hFile = CreateFileA(dumpPath, GENERIC_WRITE, 0, NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
 
@@ -165,7 +157,7 @@ static void WriteMiniDump(EXCEPTION_POINTERS* ExceptionInfo)
 }
 
 // Your existing exception handler function
-LONG WINAPI Utils::Vectored_Exception_Handler(EXCEPTION_POINTERS* ExceptionInfo)
+LONG WINAPI Utils::VectoredExceptionHandler(EXCEPTION_POINTERS* ExceptionInfo)
 {
 	__try
 	{
@@ -174,13 +166,84 @@ LONG WINAPI Utils::Vectored_Exception_Handler(EXCEPTION_POINTERS* ExceptionInfo)
 			return EXCEPTION_CONTINUE_SEARCH;
 		}
 
-		DWORD code = ExceptionInfo->ExceptionRecord->ExceptionCode;
+		const DWORD code = ExceptionInfo->ExceptionRecord->ExceptionCode;
+		void* faultAddr = ExceptionInfo->ExceptionRecord->ExceptionAddress;
+
+		// Simulate instruction patching (NOP fill) for specific exceptions
+		if (Config.HandleExceptions)
+		{
+			switch (code)
+			{
+			case STATUS_INTEGER_DIVIDE_BY_ZERO:
+			case STATUS_INTEGER_OVERFLOW:
+			case STATUS_PRIVILEGED_INSTRUCTION:
+			case STATUS_ILLEGAL_INSTRUCTION:
+			case STATUS_ACCESS_VIOLATION:
+				__try
+				{
+					char moduleName[MAX_PATH] = {};
+					__try
+					{
+						GetModuleFromAddress(faultAddr, moduleName, MAX_PATH);
+					}
+					__except (EXCEPTION_EXECUTE_HANDLER)
+					{
+						moduleName[0] = '\0';
+					}
+
+					if (!moduleName[0])
+					{
+						strcpy_s(moduleName, "unknown");
+					}
+
+					Logging::LogFormat(
+						__FUNCTION__ " "
+						"Warning: Exception caught at address: %p "
+						"code: 0x%08X"
+						"module: %s",
+						faultAddr,
+						code,
+						moduleName
+					);
+				}
+				__except (EXCEPTION_EXECUTE_HANDLER) {}
+
+				// Use custom disassembler to get the instruction length
+				__try
+				{
+					unsigned instrLen = Disasm::getInstructionLength(faultAddr);
+					if (instrLen == 0 || instrLen > 15) // Sanity check
+					{
+						Logging::LogFormat(__FUNCTION__ " Error: Invalid instruction length, skipping patch.");
+						break;
+					}
+
+					DWORD oldProtect = 0;
+					if (VirtualProtect(faultAddr, instrLen, PAGE_EXECUTE_READWRITE, &oldProtect))
+					{
+						memset(faultAddr, 0x90, instrLen); // Patch with NOPs
+						VirtualProtect(faultAddr, instrLen, oldProtect, &oldProtect);
+						FlushInstructionCache(GetCurrentProcess(), faultAddr, instrLen);
+
+						ExceptionInfo->ContextRecord->Eip += instrLen;
+						Logging::LogFormat(__FUNCTION__ " Patched instruction with NOPs, continuing execution.");
+						return EXCEPTION_CONTINUE_EXECUTION;
+					}
+					else
+					{
+						Logging::LogFormat(__FUNCTION__ " Error: VirtualProtect failed, error=%d", GetLastError());
+					}
+				}
+				__except (EXCEPTION_EXECUTE_HANDLER) {}
+				break;
+			}
+		}
 
 		switch (code)
 		{
 		case STATUS_PRIVILEGED_INSTRUCTION:
 		{
-			size_t size = Disasm::getInstructionLength(ExceptionInfo->ExceptionRecord->ExceptionAddress);
+			size_t size = Disasm::getInstructionLength(faultAddr);
 
 			if (!size || size > 15)
 			{
@@ -205,6 +268,11 @@ LONG WINAPI Utils::Vectored_Exception_Handler(EXCEPTION_POINTERS* ExceptionInfo)
 						__except (EXCEPTION_EXECUTE_HANDLER)
 						{
 							moduleName[0] = '\0';
+						}
+
+						if (!moduleName[0])
+						{
+							strcpy_s(moduleName, "unknown");
 						}
 
 						Logging::LogFormat(
@@ -315,7 +383,7 @@ LONG WINAPI Utils::Vectored_Exception_Handler(EXCEPTION_POINTERS* ExceptionInfo)
 			char moduleName[MAX_PATH] = {};
 			__try
 			{
-				GetModuleFromAddress(ExceptionInfo->ExceptionRecord->ExceptionAddress, moduleName, MAX_PATH);
+				GetModuleFromAddress(faultAddr, moduleName, MAX_PATH);
 			}
 			__except (EXCEPTION_EXECUTE_HANDLER)
 			{
@@ -327,7 +395,7 @@ LONG WINAPI Utils::Vectored_Exception_Handler(EXCEPTION_POINTERS* ExceptionInfo)
 				strcpy_s(moduleName, "unknown");
 			}
 
-			Logging::LogFormat("Exception: code=0x%08X at %p in %s", code, ExceptionInfo->ExceptionRecord->ExceptionAddress, moduleName);
+			Logging::LogFormat("Exception: code=0x%08X at %p in %s", code, faultAddr, moduleName);
 		}
 		break;
 		}
@@ -338,75 +406,4 @@ LONG WINAPI Utils::Vectored_Exception_Handler(EXCEPTION_POINTERS* ExceptionInfo)
 	}
 
 	return EXCEPTION_CONTINUE_SEARCH;
-}
-
-LONG WINAPI Utils::CustomUnhandledExceptionFilter(LPEXCEPTION_POINTERS exceptionInfo)
-{
-	void* faultAddr = exceptionInfo->ExceptionRecord->ExceptionAddress;
-	DWORD code = exceptionInfo->ExceptionRecord->ExceptionCode;
-
-	char moduleName[MAX_PATH];
-	GetModuleFromAddress(faultAddr, moduleName, MAX_PATH);
-
-	Logging::Log() << __FUNCTION__ << " Exception caught at address: " << faultAddr << ", code: " << Logging::hex(code) << ", module: " << moduleName;
-
-	// Simulate instruction patching (NOP fill) for specific exceptions
-	switch (code)
-	{
-	case STATUS_INTEGER_DIVIDE_BY_ZERO:
-	case STATUS_INTEGER_OVERFLOW:
-	case STATUS_PRIVILEGED_INSTRUCTION:
-	case STATUS_ILLEGAL_INSTRUCTION:
-	case STATUS_ACCESS_VIOLATION:
-	{
-		// Use your custom disassembler to get the instruction length
-		unsigned instrLen = Disasm::getInstructionLength(faultAddr);
-		if (instrLen == 0 || instrLen > 15) // Sanity check
-		{
-			Logging::Log() << __FUNCTION__ << " Invalid instruction length, skipping patch.";
-			return EXCEPTION_CONTINUE_SEARCH;
-		}
-
-		DWORD oldProtect = 0;
-		if (VirtualProtect(faultAddr, instrLen, PAGE_EXECUTE_READWRITE, &oldProtect))
-		{
-			memset(faultAddr, 0x90, instrLen); // Patch with NOPs
-			VirtualProtect(faultAddr, instrLen, oldProtect, &oldProtect);
-			FlushInstructionCache(GetCurrentProcess(), faultAddr, instrLen);
-
-			exceptionInfo->ContextRecord->Eip += instrLen;
-			Logging::Log() << __FUNCTION__ << " Patched instruction with NOPs, continuing execution.";
-			return EXCEPTION_CONTINUE_EXECUTION;
-		}
-		else
-		{
-			Logging::Log() << __FUNCTION__ << " VirtualProtect failed, error=" << GetLastError();
-		}
-		break;
-	}
-	}
-
-	return EXCEPTION_CONTINUE_SEARCH;
-}
-
-void Utils::SetCustomExceptionHandler()
-{
-	Logging::Log() << "Installing custom unhandled exception filter...";
-
-	// Save previous filter
-	g_previousFilter = SetUnhandledExceptionFilter(CustomUnhandledExceptionFilter);
-
-	// Optionally suppress error popups
-	SetErrorMode(SEM_FAILCRITICALERRORS | SEM_NOGPFAULTERRORBOX | SEM_NOOPENFILEERRORBOX);
-}
-
-void Utils::RemoveCustomExceptionHandler()
-{
-	Logging::Log() << "Removing custom unhandled exception filter...";
-
-	// Restore previous filter
-	SetUnhandledExceptionFilter(g_previousFilter);
-
-	// Restore default error mode
-	SetErrorMode(0);
 }

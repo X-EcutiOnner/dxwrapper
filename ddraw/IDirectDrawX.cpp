@@ -540,7 +540,7 @@ HRESULT m_IDirectDrawX::CreateSurface2(LPDDSURFACEDESC2 lpDDSurfaceDesc2, LPDIRE
 		if ((lpDDSurfaceDesc2->ddsCaps.dwCaps & DDSCAPS_TEXTURE) == NULL &&
 			((lpDDSurfaceDesc2->ddsCaps.dwCaps & DDSCAPS_MIPMAP) || (lpDDSurfaceDesc2->ddsCaps.dwCaps2 & (DDSCAPS2_HINTDYNAMIC | DDSCAPS2_HINTSTATIC | DDSCAPS2_TEXTUREMANAGE | DDSCAPS2_D3DTEXTUREMANAGE))))
 		{
-			LOG_LIMIT(100, __FUNCTION__ << " Error: missing texture flag: " << lpDDSurfaceDesc2->ddsCaps);
+			LOG_LIMIT(100, __FUNCTION__ << " Error: missing texture flag. ddsCaps: " << lpDDSurfaceDesc2->ddsCaps);
 			return DDERR_INVALIDPARAMS;
 		}
 

@@ -18,6 +18,8 @@
 #define __DXVA1_DEPRECATED_INTERFACES__
 #define DIRECTINPUT_VERSION 0x0800
 
+typedef enum _DDSCAPS2_LOG {} DDSCAPS2_LOG;
+
 #include <d3d9.h>
 #include <d3d9types.h>
 #include <Dxva.h>
@@ -404,12 +406,44 @@ std::ostream& operator<<(std::ostream& os, const DDSCAPS& dwCaps)
 		<< ((dwCaps.dwCaps & DDSCAPS_ZBUFFER) ? " DDSCAPS_ZBUFFER " : "");
 }
 
+static std::ostream& operator<<(std::ostream& os, const DDSCAPS2_LOG& dwCaps2)
+{
+	return Logging::LogStructNull(os)
+		<< ((dwCaps2 & DDSCAPS2_RESERVED4) ? " DDSCAPS2_RESERVED4 " : "")
+		<< ((dwCaps2 & DDSCAPS2_HINTDYNAMIC) ? " DDSCAPS2_HINTDYNAMIC " : "")
+		<< ((dwCaps2 & DDSCAPS2_HINTSTATIC) ? " DDSCAPS2_HINTSTATIC " : "")
+		<< ((dwCaps2 & DDSCAPS2_TEXTUREMANAGE) ? " DDSCAPS2_TEXTUREMANAGE " : "")
+		<< ((dwCaps2 & DDSCAPS2_RESERVED1) ? " DDSCAPS2_RESERVED1 " : "")
+		<< ((dwCaps2 & DDSCAPS2_RESERVED2) ? " DDSCAPS2_RESERVED2 " : "")
+		<< ((dwCaps2 & DDSCAPS2_OPAQUE) ? " DDSCAPS2_OPAQUE " : "")
+		<< ((dwCaps2 & DDSCAPS2_HINTANTIALIASING) ? " DDSCAPS2_HINTANTIALIASING " : "")
+		<< ((dwCaps2 & DDSCAPS2_CUBEMAP) ? " DDSCAPS2_CUBEMAP " : "")
+		<< ((dwCaps2 & DDSCAPS2_CUBEMAP_POSITIVEX) ? " DDSCAPS2_CUBEMAP_POSITIVEX " : "")
+		<< ((dwCaps2 & DDSCAPS2_CUBEMAP_NEGATIVEX) ? " DDSCAPS2_CUBEMAP_NEGATIVEX " : "")
+		<< ((dwCaps2 & DDSCAPS2_CUBEMAP_POSITIVEY) ? " DDSCAPS2_CUBEMAP_POSITIVEY " : "")
+		<< ((dwCaps2 & DDSCAPS2_CUBEMAP_NEGATIVEY) ? " DDSCAPS2_CUBEMAP_NEGATIVEY " : "")
+		<< ((dwCaps2 & DDSCAPS2_CUBEMAP_POSITIVEZ) ? " DDSCAPS2_CUBEMAP_POSITIVEZ " : "")
+		<< ((dwCaps2 & DDSCAPS2_CUBEMAP_NEGATIVEZ) ? " DDSCAPS2_CUBEMAP_NEGATIVEZ " : "")
+		<< ((dwCaps2 & DDSCAPS2_MIPMAPSUBLEVEL) ? " DDSCAPS2_MIPMAPSUBLEVEL " : "")
+		<< ((dwCaps2 & DDSCAPS2_D3DTEXTUREMANAGE) ? " DDSCAPS2_D3DTEXTUREMANAGE " : "")
+		<< ((dwCaps2 & DDSCAPS2_DONOTPERSIST) ? " DDSCAPS2_DONOTPERSIST " : "")
+		<< ((dwCaps2 & DDSCAPS2_STEREOSURFACELEFT) ? " DDSCAPS2_STEREOSURFACELEFT " : "")
+		<< ((dwCaps2 & DDSCAPS2_VOLUME) ? " DDSCAPS2_VOLUME " : "")
+		<< ((dwCaps2 & DDSCAPS2_NOTUSERLOCKABLE) ? " DDSCAPS2_NOTUSERLOCKABLE " : "")
+		<< ((dwCaps2 & DDSCAPS2_POINTS) ? " DDSCAPS2_POINTS " : "")
+		<< ((dwCaps2 & DDSCAPS2_RTPATCHES) ? " DDSCAPS2_RTPATCHES " : "")
+		<< ((dwCaps2 & DDSCAPS2_NPATCHES) ? " DDSCAPS2_NPATCHES " : "")
+		<< ((dwCaps2 & DDSCAPS2_RESERVED3) ? " DDSCAPS2_RESERVED3 " : "")
+		<< ((dwCaps2 & DDSCAPS2_DISCARDBACKBUFFER) ? " DDSCAPS2_DISCARDBACKBUFFER " : "")
+		<< ((dwCaps2 & DDSCAPS2_ENABLEALPHACHANNEL) ? " DDSCAPS2_ENABLEALPHACHANNEL " : "");
+}
+
 std::ostream& operator<<(std::ostream& os, const DDSCAPS2& dwCaps)
 {
 	return Logging::LogStruct(os)
 		<< *(DDSCAPS*)&dwCaps
-		<< Logging::hex(dwCaps.dwCaps2)
-		<< Logging::hex(dwCaps.dwCaps3)
+		<< *(DDSCAPS2_LOG*)&dwCaps.dwCaps2
+		<< ((dwCaps.dwCaps3 & DDSCAPS3_MULTISAMPLE_MASK) ? "{ DDSCAPS3_MULTISAMPLE_MASK }" : "0x0")
 		<< Logging::hex(dwCaps.dwCaps4);
 }
 

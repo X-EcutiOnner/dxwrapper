@@ -3980,7 +3980,8 @@ void m_IDirectDrawX::GetD9Cache()
 			// Get supported texture formats
 			for (const auto& format : TextureList)
 			{
-				if (SUCCEEDED(d3d9Object->CheckDeviceFormat(d3d9AdapterIndex, D3DDEVTYPE_HAL, D9DisplayFormat, 0, D3DRTYPE_TEXTURE, format)))
+				if (!IsUnsupportedFormat(format) &&
+					(format == D3DFMT_P8 || SUCCEEDED(d3d9Object->CheckDeviceFormat(d3d9AdapterIndex, D3DDEVTYPE_HAL, D9DisplayFormat, 0, D3DRTYPE_TEXTURE, format))))
 				{
 					D9Cache.TextureFormat.push_back(format);
 				}

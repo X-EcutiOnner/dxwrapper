@@ -3988,7 +3988,7 @@ HRESULT m_IDirect3DDeviceX::EnumTextureFormats(LPD3DENUMPIXELFORMATSCALLBACK lpd
 		// Check for supported textures
 		for (const auto& format : TextureFormat)
 		{
-			if (!IsUnsupportedFormat(format) && (format != D3DFMT_P8 || (format == D3DFMT_P8 && IsDirectDraw8bit)))
+			if (format != D3DFMT_P8 || (IsDirectDraw8bit && format == D3DFMT_P8))
 			{
 				DDPIXELFORMAT ddpfPixelFormat = {};
 				ddpfPixelFormat.dwSize = sizeof(DDPIXELFORMAT);

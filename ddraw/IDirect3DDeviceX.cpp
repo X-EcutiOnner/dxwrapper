@@ -6491,7 +6491,7 @@ void m_IDirect3DDeviceX::SetDrawStates(DWORD dwVertexTypeDesc, DWORD& dwFlags, D
 		if ((dwFlags & D3DDP_DONOTLIGHT) || !(dwVertexTypeDesc & D3DFVF_NORMAL))
 		{
 			dwFlags |= D3DDP_DONOTLIGHT;
-			GetD9RenderState(D3DRS_CLIPPING, &DrawStates.rsLighting);
+			GetD9RenderState(D3DRS_LIGHTING, &DrawStates.rsLighting);
 			(*d3d9Device)->SetRenderState(D3DRS_LIGHTING, FALSE);
 		}
 		if (dwFlags & D3DDP_DONOTUPDATEEXTENTS)

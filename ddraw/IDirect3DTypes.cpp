@@ -317,9 +317,9 @@ bool IsValidTransformState(D3DTRANSFORMSTATETYPE State)
 	}
 }
 
-D3DMATRIX UpdateProjectionMatrix(const D3DMATRIX& Matrix, D3DVECTOR Scale, D3DVECTOR Clip, bool SetClipping)
+D3DMATRIX UpdateProjectionMatrix(const D3DMATRIX& Matrix, D3DVECTOR Scale, D3DVECTOR ClipScale, bool SetClipping)
 {
-	UNREFERENCED_PARAMETER(Clip);
+	UNREFERENCED_PARAMETER(ClipScale);
 	UNREFERENCED_PARAMETER(SetClipping);
 
 	D3DMATRIX result = Matrix;
@@ -329,23 +329,23 @@ D3DMATRIX UpdateProjectionMatrix(const D3DMATRIX& Matrix, D3DVECTOR Scale, D3DVE
 		result._11 *= Scale.x;
 		result._22 *= Scale.y;
 		result._33 *= Scale.z;
-
-		// Set clip to 0
-		//if (SetClipping)
-		//{
-		//	result._41 *= Clip.x;
-		//	result._42 *= Clip.y;
-		//	result._43 *= Clip.z;
-		//}
-		//else
-		//{
-		//	result._41 = 0.0f;
-		//	result._42 = 0.0f;
-		//	result._43 = 0.0f;
-		//}
-
-		//result._44 *= 1.0f;
 	}
+
+	// Set clip to 0
+	//if (SetClipping)
+	//{
+	//	result._41 *= ClipScale.x;
+	//	result._42 *= ClipScale.y;
+	//	result._43 *= ClipScale.z;
+	//}
+	//else
+	//{
+	//	result._41 = 0.0f;
+	//	result._42 = 0.0f;
+	//	result._43 = 0.0f;
+	//}
+
+	//result._44 *= 1.0f;
 
 	return result;
 }

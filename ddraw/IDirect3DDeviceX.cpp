@@ -5002,7 +5002,7 @@ HRESULT m_IDirect3DDeviceX::SetViewportData(VIEWPORTINFO& Viewport)
 	{
 		DeviceStates.Viewport.UseViewportScale = true;
 		DeviceStates.Viewport.Scale = Viewport.Scale;
-		DeviceStates.Viewport.Clip = Viewport.Clip;
+		DeviceStates.Viewport.ClipScale = Viewport.ClipScale;
 	}
 
 	return D3D_OK;
@@ -6485,7 +6485,7 @@ void m_IDirect3DDeviceX::SetDrawStates(DWORD dwVertexTypeDesc, DWORD& dwFlags, D
 		{
 			dwFlags |= D3DDP_DXW_SCALEMATRIX;
 			GetD9Transform(D3DTS_PROJECTION, &DrawStates.ProjectionMatrix);
-			D3DMATRIX Matrix = UpdateProjectionMatrix(DrawStates.ProjectionMatrix, DeviceStates.Viewport.Scale, DeviceStates.Viewport.Clip, !(dwFlags & D3DDP_DONOTCLIP));
+			D3DMATRIX Matrix = UpdateProjectionMatrix(DrawStates.ProjectionMatrix, DeviceStates.Viewport.Scale, DeviceStates.Viewport.ClipScale, !(dwFlags & D3DDP_DONOTCLIP));
 			(*d3d9Device)->SetTransform(D3DTS_PROJECTION, &Matrix);
 		}
 		if ((dwFlags & D3DDP_DONOTLIGHT) || !(dwVertexTypeDesc & D3DFVF_NORMAL))

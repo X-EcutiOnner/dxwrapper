@@ -443,7 +443,7 @@ bool IsOutOfRangeRenderState(D3DRENDERSTATETYPE dwRenderStateType, DWORD DirectX
 DWORD GetDepthBias(DWORD ZBias, DWORD DepthBitCount);
 DWORD FixSamplerState(D3DSAMPLERSTATETYPE Type, DWORD Value);
 bool IsValidTransformState(D3DTRANSFORMSTATETYPE State);
-D3DMATRIX UpdateProjectionMatrix(const D3DMATRIX& Matrix, D3DVECTOR Scale, D3DVECTOR Clip, bool SetClipping);
+D3DMATRIX UpdateProjectionMatrix(const D3DMATRIX& Matrix, D3DVECTOR Scale, D3DVECTOR ClipScale, bool SetClipping);
 void ConvertDeviceDesc(D3DDEVICEDESC& Desc, const D3DDEVICEDESC7& Desc7);
 void ConvertDeviceDesc(D3DDEVICEDESC7& Desc7, const D3DCAPS9& Caps9);
 void ConvertLVertex(DXLVERTEX7* lFVF7, const DXLVERTEX9* lFVF9, DWORD NumVertices);

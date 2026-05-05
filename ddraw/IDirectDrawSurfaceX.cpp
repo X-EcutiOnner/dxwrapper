@@ -3169,6 +3169,12 @@ HRESULT m_IDirectDrawSurfaceX::Unlock(LPRECT lpRect, DWORD MipMapLevel)
 				RemoveScanlines(LastLock);
 			}
 
+			// Fix alpha bit on fail-over alpha surface
+			if (surface.IsUsingFailoverSurface)
+			{
+				SetFailoverAlphaBits(LastLock);
+			}
+
 			// Emulated surface
 			if (IsUsingEmulation())
 			{
@@ -4768,6 +4774,27 @@ HRESULT m_IDirectDrawSurfaceX::CreateD9Surface()
 
 	} while (false);
 
+	// Check if surface format is using failover
+	surface.IsUsingFailoverSurface = false;
+	if (surface.Texture)
+	{
+		D3DSURFACE_DESC Desc = {};
+		if (SUCCEEDED(surface.Texture->GetLevelDesc(0, &Desc)) &&
+			surface.Format != Desc.Format && GetFailoverFormat(surface.Format) == Desc.Format)
+		{
+			surface.IsUsingFailoverSurface = true;
+		}
+	}
+	else if (surface.Surface)
+	{
+		D3DSURFACE_DESC Desc = {};
+		if (SUCCEEDED(surface.Surface->GetDesc(&Desc)) &&
+			surface.Format != Desc.Format && GetFailoverFormat(surface.Format) == Desc.Format)
+		{
+			surface.IsUsingFailoverSurface = true;
+		}
+	}
+
 	// Create emulated surface using device context for creation
 	bool EmuSurfaceCreated = false;
 	if ((CreateSurfaceEmulated || IsUsingEmulation()) && !DoesDCMatch(surface.emu))
@@ -6099,6 +6126,67 @@ void m_IDirectDrawSurfaceX::RemoveScanlines(LASTLOCK& LLock)
 		{
 			memcpy(DestBuffer, DestBuffer - LLock.LockedRect.Pitch, size);
 			DestBuffer += LLock.LockedRect.Pitch * 2;
+		}
+	}
+}
+
+void m_IDirectDrawSurfaceX::SetFailoverAlphaBits(LASTLOCK& LLock) const
+{
+	if (!LLock.LockedRect.pBits || !LLock.LockedRect.Pitch)
+	{
+		return;
+	}
+
+	LONG RectWidth = LLock.Rect.right - LLock.Rect.left;
+	LONG RectHeight = LLock.Rect.bottom - LLock.Rect.top;
+
+	if (RectWidth <= 0 || RectHeight <= 0)
+	{
+		return;
+	}
+
+	BYTE* DestBuffer = (BYTE*)LLock.LockedRect.pBits;
+
+	if (surface.Format == D3DFMT_X1R5G5B5)
+	{
+		LOG_LIMIT(100, __FUNCTION__ << " Warning: Filling alpha bit on fail-over surfaces may cause slowdowns!");
+
+		for (LONG y = 0; y < RectHeight; y++)
+		{
+			WORD* row = (WORD*)(DestBuffer + y * LLock.LockedRect.Pitch);
+
+			for (LONG x = 0; x < RectWidth; x++)
+			{
+				row[x] |= 0x8000; // Set alpha bit (bit 15)
+			}
+		}
+	}
+	else if (surface.Format == D3DFMT_X4R4G4B4)
+	{
+		LOG_LIMIT(100, __FUNCTION__ << " Warning: Filling alpha bits on fail-over surfaces may cause slowdowns!");
+
+		for (LONG y = 0; y < RectHeight; y++)
+		{
+			WORD* row = (WORD*)(DestBuffer + y * LLock.LockedRect.Pitch);
+
+			for (LONG x = 0; x < RectWidth; x++)
+			{
+				row[x] |= 0xF000; // Set alpha bits
+			}
+		}
+	}
+	else if (surface.Format == D3DFMT_X8R8G8B8 || surface.Format == D3DFMT_X8B8G8R8)
+	{
+		LOG_LIMIT(100, __FUNCTION__ << " Warning: Filling alpha bits on fail-over surfaces may cause slowdowns!");
+
+		for (LONG y = 0; y < RectHeight; y++)
+		{
+			DWORD* row = (DWORD*)(DestBuffer + y * LLock.LockedRect.Pitch);
+
+			for (LONG x = 0; x < RectWidth; x++)
+			{
+				row[x] |= 0xFF000000; // Set alpha bits
+			}
 		}
 	}
 }

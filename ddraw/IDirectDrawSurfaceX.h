@@ -181,6 +181,7 @@ private:
 	{
 		bool CanBeRenderTarget = false;
 		bool IsUsingWindowedMode = false;
+		bool IsUsingFailoverSurface = false;
 		bool RecreateAuxiliarySurfaces = false;
 		bool HasData = false;
 		bool UsingSurfaceMemory = false;
@@ -538,6 +539,9 @@ public:
 	// For removing scanlines
 	void RestoreScanlines(LASTLOCK &LLock) const;
 	void RemoveScanlines(LASTLOCK &LLock);
+
+	// For fixing alpha channel on fail-over surface
+	void SetFailoverAlphaBits(LASTLOCK& LLock) const;
 
 	// Functions handling the ddraw parent interface
 	void SetDdrawParent(m_IDirectDrawX* ddraw);

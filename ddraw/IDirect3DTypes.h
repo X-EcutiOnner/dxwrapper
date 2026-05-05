@@ -404,6 +404,7 @@ struct VIEWPORTINFO {
     float MinZ = 0;
     float MaxZ = 0;
     D3DVECTOR Scale = {};
+    D3DVECTOR ClipScale = {};
     D3DVECTOR Clip = {};
 };
 

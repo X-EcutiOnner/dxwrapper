@@ -224,6 +224,11 @@ HRESULT m_IDirect3DViewportX::SetViewport(LPD3DVIEWPORT lpData)
 		Viewport.Scale.y = 2.0f * lpData->dvScaleY / (float)lpData->dwHeight;
 		Viewport.Scale.z = 1.0f;
 
+		// Set viewport clip scale
+		Viewport.ClipScale.x = 0.0f;
+		Viewport.ClipScale.y = 0.0f;
+		Viewport.ClipScale.z = 0.0f;
+
 		// Set viewport clip
 		Viewport.Clip.x = 0.0f;
 		Viewport.Clip.y = 0.0f;
@@ -759,12 +764,15 @@ HRESULT m_IDirect3DViewportX::GetViewport2(LPD3DVIEWPORT2 lpData)
 		lpData->dvMaxZ = Viewport.MaxZ;
 
 		// Set viewport clip
-		float scaleX = (fabsf(Viewport.Scale.x) > 1e-6f) ? Viewport.Scale.x : 1.0f;
-		float scaleY = (fabsf(Viewport.Scale.y) > 1e-6f) ? Viewport.Scale.y : 1.0f;
+		float scaleX = (fabsf(Viewport.ClipScale.x) > 1e-6f) ? Viewport.ClipScale.x : 1.0f;
+		float scaleY = (fabsf(Viewport.ClipScale.y) > 1e-6f) ? Viewport.ClipScale.y : 1.0f;
+
 		lpData->dvClipWidth = 2.0f / scaleX;
 		lpData->dvClipHeight = 2.0f / scaleY;
-		lpData->dvClipX = lpData->dvClipWidth * (scaleX + 1.0f) / -2.0f;
-		lpData->dvClipY = lpData->dvClipHeight * (scaleY - 1.0f) / -2.0f;
+
+		// Inverse of SetViewport2 math
+		lpData->dvClipX = -(Viewport.Clip.x + 1.0f) * lpData->dvClipWidth / 2.0f;
+		lpData->dvClipY = (1.0f - Viewport.Clip.y) * lpData->dvClipHeight / 2.0f;
 
 		return D3D_OK;
 	}
@@ -807,15 +815,21 @@ HRESULT m_IDirect3DViewportX::SetViewport2(LPD3DVIEWPORT2 lpData)
 		}
 
 		// Set viewport scale
-		float clipWidth = (fabsf(lpData->dvClipWidth) > 1e-6f) ? lpData->dvClipWidth : 2.0f;	// default clip space width
+		Viewport.Scale.x = 0.0f;
+		Viewport.Scale.y = 0.0f;
+		Viewport.Scale.z = 0.0f;
+
+		// Set viewport clip scale
+		float clipWidth = (fabsf(lpData->dvClipWidth) > 1e-6f) ? lpData->dvClipWidth : 2.0f;
 		float clipHeight = (fabsf(lpData->dvClipHeight) > 1e-6f) ? lpData->dvClipHeight : 2.0f;
-		Viewport.Scale.x = 2.0f / clipWidth;
-		Viewport.Scale.y = 2.0f / clipHeight;
-		Viewport.Scale.z = 1.0f / (Viewport.MaxZ - Viewport.MinZ);
+
+		Viewport.ClipScale.x = 2.0f / clipWidth;
+		Viewport.ClipScale.y = 2.0f / clipHeight;
+		Viewport.ClipScale.z = 1.0f / (Viewport.MaxZ - Viewport.MinZ);
 
 		// Set viewport clip
-		Viewport.Clip.x = -2.0f * lpData->dvClipX / clipWidth - 1.0f;
-		Viewport.Clip.y = -2.0f * lpData->dvClipY / clipHeight + 1.0f;
+		Viewport.Clip.x = -1.0f - (2.0f * lpData->dvClipX / clipWidth);
+		Viewport.Clip.y = 1.0f - (2.0f * lpData->dvClipY / clipHeight);
 		Viewport.Clip.z = -Viewport.MinZ / (Viewport.MaxZ - Viewport.MinZ);
 
 		// If current viewport is set then use new viewport

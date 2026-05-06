@@ -3170,7 +3170,7 @@ HRESULT m_IDirectDrawSurfaceX::Unlock(LPRECT lpRect, DWORD MipMapLevel)
 			}
 
 			// Fix alpha bit on fail-over alpha surface
-			if (surface.IsUsingFailoverSurface)
+			if (surface.IsUsingFailoverSurface && IsSurfaceTexture())
 			{
 				SetFailoverAlphaBits(LastLock);
 			}

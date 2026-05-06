@@ -20,6 +20,8 @@
 #include "d3dx9_data_47.h"
 #include <string>
 #include "External\MemoryModule\MemoryModule.h"
+#include "ComPtr.h"
+#include "IClassFactory\IClassFactory.h"
 #include "Utils\Utils.h"
 #include "Logging\Logging.h"
 
@@ -102,6 +104,13 @@ HRESULT WINAPI D3DXLoadSurfaceFromMemory(LPDIRECT3DSURFACE9 pDestSurface, const 
 {
 	Logging::LogDebug() << __FUNCTION__;
 
+	// Get real d3d9 surface (no need to Release)
+	LPDIRECT3DSURFACE9 pDestRealSurface = nullptr;
+	if (SUCCEEDED(pDestSurface->QueryInterface(IID_GetRealInterface, (void**)&pDestRealSurface)))
+	{
+		pDestSurface = pDestRealSurface;
+	}
+
 	HRESULT hr = p_D3DXLoadSurfaceFromMemory(pDestSurface, pDestPalette, pDestRect, pSrcMemory, SrcFormat, SrcPitch, pSrcPalette, pSrcRect, Filter, ColorKey);
 
 	if (FAILED(hr))
@@ -110,11 +119,11 @@ HRESULT WINAPI D3DXLoadSurfaceFromMemory(LPDIRECT3DSURFACE9 pDestSurface, const 
 		return hr;
 	}
 
-	LPDIRECT3DTEXTURE9 pDestTexture = nullptr;
-	if (SUCCEEDED(pDestSurface->GetContainer(IID_IDirect3DTexture9, (void**)&pDestTexture)))
+	// Add dirty rect if surface is a texture
+	ComPtr<IDirect3DTexture9> pDestTexture;
+	if (SUCCEEDED(pDestSurface->GetContainer(IID_IDirect3DTexture9, (void**)pDestTexture.GetAddressOf())))
 	{
 		pDestTexture->AddDirtyRect(pDestRect);
-		pDestTexture->Release();
 	}
 
 	return D3D_OK;
@@ -124,6 +133,19 @@ HRESULT WINAPI D3DXLoadSurfaceFromSurface(LPDIRECT3DSURFACE9 pDestSurface, const
 {
 	Logging::LogDebug() << __FUNCTION__;
 
+	// Get real d3d9 surface (no need to Release)
+	LPDIRECT3DSURFACE9 pDestRealSurface = nullptr;
+	if (SUCCEEDED(pDestSurface->QueryInterface(IID_GetRealInterface, (void**)&pDestRealSurface)))
+	{
+		pDestSurface = pDestRealSurface;
+	}
+
+	LPDIRECT3DSURFACE9 pSrcRealSurface = nullptr;
+	if (SUCCEEDED(pSrcSurface->QueryInterface(IID_GetRealInterface, (void**)&pSrcRealSurface)))
+	{
+		pSrcSurface = pSrcRealSurface;
+	}
+
 	HRESULT hr = p_D3DXLoadSurfaceFromSurface(pDestSurface, pDestPalette, pDestRect, pSrcSurface, pSrcPalette, pSrcRect, Filter, ColorKey);
 
 	if (FAILED(hr))
@@ -132,11 +154,11 @@ HRESULT WINAPI D3DXLoadSurfaceFromSurface(LPDIRECT3DSURFACE9 pDestSurface, const
 		return hr;
 	}
 
-	LPDIRECT3DTEXTURE9 pDestTexture = nullptr;
-	if (SUCCEEDED(pDestSurface->GetContainer(IID_IDirect3DTexture9, (void**)&pDestTexture)))
+	// Add dirty rect if surface is a texture
+	ComPtr<IDirect3DTexture9> pDestTexture;
+	if (SUCCEEDED(pDestSurface->GetContainer(IID_IDirect3DTexture9, (void**)pDestTexture.GetAddressOf())))
 	{
 		pDestTexture->AddDirtyRect(pDestRect);
-		pDestTexture->Release();
 	}
 
 	return D3D_OK;

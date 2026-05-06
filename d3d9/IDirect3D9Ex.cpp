@@ -838,7 +838,7 @@ void m_IDirect3D9Ex::UpdatePresentParameter(D3DPRESENT_PARAMETERS* pPresentation
 		// Adjust window styles before adjusting window
 		if (SetWindow)
 		{
-			AdjustWindowStyle(DeviceDetails.DeviceWindow, pPresentationParameters->Windowed == FALSE);
+			AdjustWindowStyle(DeviceDetails.DeviceWindow, DeviceDetails.IsDirectDrawDevice, pPresentationParameters->Windowed == FALSE);
 		}
 
 		// Get window width and height
@@ -923,7 +923,7 @@ void m_IDirect3D9Ex::GetFullscreenDisplayMode(D3DPRESENT_PARAMETERS& d3dpp, D3DD
 	Mode.ScanLineOrdering = D3DSCANLINEORDERING_PROGRESSIVE;
 }
 
-void m_IDirect3D9Ex::AdjustWindowStyle(HWND hWnd, bool IsExclusive)
+void m_IDirect3D9Ex::AdjustWindowStyle(HWND hWnd, bool IsDirectDrawDevice, bool IsExclusive)
 {
 	const LONG lStyle = GetWindowLong(hWnd, GWL_STYLE);
 	const LONG lExStyle = GetWindowLong(hWnd, GWL_EXSTYLE);
@@ -934,7 +934,7 @@ void m_IDirect3D9Ex::AdjustWindowStyle(HWND hWnd, bool IsExclusive)
 	bool frameStyleChanged = false;
 
 	// Add border if Vulkan is being used
-	if ((newStyle & WS_POPUP) && !(newStyle & WS_BORDER))
+	if (IsDirectDrawDevice && (newStyle & WS_POPUP) && !(newStyle & WS_BORDER))
 	{
 		if (Utils::IsVulkanModuleLoaded())
 		{
@@ -981,7 +981,7 @@ void m_IDirect3D9Ex::AdjustWindowStyle(HWND hWnd, bool IsExclusive)
 	}
 
 	// Ensure visibility before frame change
-	if (!IsWindowVisible(hWnd))
+	if (IsDirectDrawDevice && !IsWindowVisible(hWnd))
 	{
 		ShowWindow(hWnd, SW_SHOWNA);
 	}

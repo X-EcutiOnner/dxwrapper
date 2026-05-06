@@ -432,15 +432,16 @@ LRESULT CALLBACK WndProc::Handler(HWND hWnd, UINT Msg, WPARAM wParam, LPARAM lPa
 		// Some games don't properly handle app activate in exclusive mode
 		if (pDataStruct->IsDirectDraw)
 		{
-			static WPARAM IsActive = 0xFFFF;
-			const bool IsDuplicateMessage = (IsActive == wParam);
+			static WPARAM IsActiveApp = pDataStruct->IsExclusiveMode && pDataStruct->DirectXVersion > 4 ? TRUE : 0xFFFF;
+
+			const bool IsDuplicateMessage = (IsActiveApp == wParam);
+			IsActiveApp = wParam;
 
 			if (IsDuplicateMessage || Config.DdrawFilterActivateApp)
 			{
 				LOG_LIMIT(3, __FUNCTION__ << " Warning: filtering " << (IsDuplicateMessage ? "duplicate " : "") << "WM_ACTIVATEAPP: " << wParam);
 				return NULL;
 			}
-			IsActive = wParam;
 		}
 		// Filter messages for loss of focus or minimize
 		if (Config.HideWindowFocusChanges && wParam == FALSE)
@@ -458,16 +459,19 @@ LRESULT CALLBACK WndProc::Handler(HWND hWnd, UINT Msg, WPARAM wParam, LPARAM lPa
 		// Filter duplicate messages when using DirectDraw
 		if (pDataStruct->IsDirectDraw)
 		{
-			const WORD IsWindowIconic = static_cast<WORD>(IsIconic(hWnd));
 			const bool IsDuplicateMessage = (pDataStruct->IsWindowActive == LOWORD(wParam));
+			pDataStruct->IsWindowActive = LOWORD(wParam);
 
-			if (IsDuplicateMessage && pDataStruct->IsWindowIconic == IsWindowIconic)
+			const WORD IsWindowIconic = static_cast<WORD>(IsIconic(hWnd));
+
+			const bool IsIconicMatches = (pDataStruct->IsWindowIconic == IsWindowIconic);
+			pDataStruct->IsWindowIconic = IsWindowIconic;
+
+			if (IsDuplicateMessage && IsIconicMatches)
 			{
 				LOG_LIMIT(3, __FUNCTION__ << " Warning: filtering duplicate WM_ACTIVATE: " << LOWORD(wParam) << " IsIconic: " << IsWindowIconic);
 				return DefWndProc(hWnd, Msg, wParam, lParam);
 			}
-			pDataStruct->IsWindowActive = LOWORD(wParam);
-			pDataStruct->IsWindowIconic = IsWindowIconic;
 		}
 		// Special handling for iconic state to prevent issues with some games
 		if (pDataStruct->IsDirectDraw && IsIconic(hWnd))

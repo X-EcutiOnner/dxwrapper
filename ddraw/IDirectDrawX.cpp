@@ -697,6 +697,15 @@ HRESULT m_IDirectDrawX::CreateSurface2(LPDDSURFACEDESC2 lpDDSurfaceDesc2, LPDIRE
 			Desc2.ddsCaps.dwCaps2 &= ~(DDSCAPS2_HINTDYNAMIC | DDSCAPS2_HINTSTATIC | DDSCAPS2_TEXTUREMANAGE | DDSCAPS2_D3DTEXTUREMANAGE);
 		}
 
+		// Update MipMap count
+		if ((Desc2.ddsCaps.dwCaps & (DDSCAPS_MIPMAP | DDSCAPS_COMPLEX | DDSCAPS_TEXTURE)) == (DDSCAPS_MIPMAP | DDSCAPS_COMPLEX | DDSCAPS_TEXTURE) &&
+			!(Desc2.dwFlags & (DDSD_REFRESHRATE | DDSD_SRCVBHANDLE)) &&
+			(!(Desc2.dwFlags & DDSD_MIPMAPCOUNT) || Desc2.dwMipMapCount == 0))
+		{
+			Desc2.dwFlags |= DDSD_MIPMAPCOUNT;
+			Desc2.dwMipMapCount = GetMaxMipMapLevel(Desc2.dwWidth, Desc2.dwHeight);
+		}
+
 		// Check for depth stencil surface
 		if ((Desc2.dwFlags & DDSD_PIXELFORMAT) && (Desc2.ddpfPixelFormat.dwFlags & (DDPF_ZBUFFER | DDPF_STENCILBUFFER)))
 		{

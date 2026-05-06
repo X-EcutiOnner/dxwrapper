@@ -1518,7 +1518,8 @@ HRESULT m_IDirectDrawSurfaceX::GetAttachedSurface2(LPDDSCAPS2 lpDDSCaps2, LPDIRE
 		// No attached surface found
 		if (!lpFoundSurface)
 		{
-			const DWORD RequestedCaps = lpDDSCaps2->dwCaps & ~(DDSCAPS_SYSTEMMEMORY | DDSCAPS_VIDEOMEMORY | DDSCAPS_LOCALVIDMEM);
+			const DWORD RequestedCaps = (lpDDSCaps2->dwCaps & ~(DDSCAPS_SYSTEMMEMORY | DDSCAPS_VIDEOMEMORY | DDSCAPS_LOCALVIDMEM)) |
+				((lpDDSCaps2->dwCaps2 & DDSCAPS2_MIPMAPSUBLEVEL) ? DDSCAPS_MIPMAP : 0);
 
 			// Handle mipmaps
 			if ((RequestedCaps & DDSCAPS_MIPMAP) && (GetSurfaceCaps().dwCaps & RequestedCaps) == RequestedCaps)
@@ -1553,10 +1554,15 @@ HRESULT m_IDirectDrawSurfaceX::GetAttachedSurface2(LPDDSCAPS2 lpDDSCaps2, LPDIRE
 			}
 
 			// Don't log error from non-mipmap created surface (originalDesc2) when querying for a mipmap surface
-			if (!(lpDDSCaps2->dwCaps & DDSCAPS_MIPMAP) || ((originalDesc2.dwFlags & DDSD_MIPMAPCOUNT) || (originalDesc2.ddsCaps.dwCaps & DDSCAPS_MIPMAP)))
+			if (!(RequestedCaps & DDSCAPS_MIPMAP) || ((originalDesc2.dwFlags & DDSD_MIPMAPCOUNT) || (originalDesc2.ddsCaps.dwCaps & DDSCAPS_MIPMAP)))
 			{
 				LOG_LIMIT(100, __FUNCTION__ << " (" << this << ")" << " Error: failed to find attached surface that matches the capabilities requested: " << *lpDDSCaps2 <<
 					" Attached number of surfaces: " << AttachedSurfaceMap.size() << " MaxMipMapLevel: " << MaxMipMapLevel << " Created surface desc: " << originalDesc2);
+			}
+			else
+			{
+				LOG_LIMIT(100, __FUNCTION__ << " (" << this << ")" << " Error: failed to find attached surface that matches the capabilities requested: " << *lpDDSCaps2 <<
+					" Attached number of surfaces: " << AttachedSurfaceMap.size() << " Created surface desc: " << originalDesc2);
 			}
 			return DDERR_NOTFOUND;
 		}

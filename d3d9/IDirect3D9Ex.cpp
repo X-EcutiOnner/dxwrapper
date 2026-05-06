@@ -1010,6 +1010,12 @@ void m_IDirect3D9Ex::AdjustWindowStyle(HWND hWnd, bool IsDirectDrawDevice, bool 
 			(frameStyleChanged ? SWP_FRAMECHANGED : 0) | (needsZOrderChange ? 0 : SWP_NOZORDER) | SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE
 		);
 	}
+
+	// Bring the window to top
+	if (hWnd != GetForegroundWindow() && hWnd != GetFocus() && hWnd != GetActiveWindow())
+	{
+		BringWindowToTop(hWnd);
+	}
 }
 
 // Adjusting the window position for WindowMode

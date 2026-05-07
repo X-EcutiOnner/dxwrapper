@@ -101,6 +101,7 @@ inline std::ostream& operator<<(std::ostream& os, const DHEX& dhex) {
 	visit(EnableD3d9Wrapper) \
 	visit(EnableDinput8Wrapper) \
 	visit(EnableDsoundWrapper) \
+	visit(EnableDumpFileCreation) \
 	visit(EnableImgui) \
 	visit(EnableMultisamplingATOC) \
 	visit(EnableOpenDialogHook) \
@@ -326,6 +327,7 @@ struct CONFIG
 	DWORD EnableD3d9Wrapper = 0;				// Enables the d3d9 wrapper
 	bool EnableDinput8Wrapper = false;			// Enables the dinput8 wrapper
 	bool EnableDsoundWrapper = false;			// Enables the dsound wrapper
+	bool EnableDumpFileCreation = false;		// Creates a dump file for critical errors that are found
 	bool EnableImgui = false;					// Enables imgui for debugging
 	DWORD EnableMultisamplingATOC = 0;			// Enables transparency multisampling (ATOC). 1) Just enable ATOC. 2) Enable ATOC and AlphaTest Render State
 	bool EnableOpenDialogHook = false;			// Enables the hooks for the open dialog box

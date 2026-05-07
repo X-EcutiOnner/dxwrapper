@@ -369,13 +369,16 @@ LONG WINAPI Utils::VectoredExceptionHandler(EXCEPTION_POINTERS* ExceptionInfo)
 			}
 			__except (EXCEPTION_EXECUTE_HANDLER) {}
 
-#ifdef CREATE_MINIDUMP
-			static LONG runonce = 1;
-			if (InterlockedExchange(&runonce, 0))
-			{
-				WriteMiniDump(ExceptionInfo);
-			}
+#ifndef CREATE_MINIDUMP
+			if (Config.EnableDumpFileCreation)
 #endif // CREATE_MINIDUMP
+			{
+				static LONG runonce = 1;
+				if (InterlockedExchange(&runonce, 0))
+				{
+					WriteMiniDump(ExceptionInfo);
+				}
+			}
 		}
 		break;
 

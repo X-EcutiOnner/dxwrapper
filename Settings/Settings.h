@@ -347,7 +347,7 @@ struct CONFIG
 	bool ForceWindowResize = false;				// Forces main window to fullscreen, requires FullScreen
 	bool ForceVsyncMode = false;				// Forces d3d9 game to use EnableVsync option
 	DWORD GraphicsHybridAdapter = 0;			// Sets the Direct3D9 Hybrid Enumeration Mode to allow using a secondary display adapter
-	bool HandleExceptions = false;				// Handles unhandled exceptions in the application
+	DWORD HandleExceptions = 0;					// Handles unhandled exceptions in the application. 1 = rewrite code to nop, 2 = skip code on error
 	bool HideWindowFocusChanges = false;		// Hide windows messages about losing focus or getting minimized
 	bool isAppCompatDataSet = false;			// Flag that holds tells whether any of the AppCompatData flags are set
 	bool LimitDisplayModeCount = false;			// Limits the number of display modes sent to program, some games crash when you feed them with too many resolutions

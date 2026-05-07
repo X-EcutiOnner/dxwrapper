@@ -219,7 +219,13 @@ LONG WINAPI Utils::VectoredExceptionHandler(EXCEPTION_POINTERS* ExceptionInfo)
 					}
 
 					DWORD oldProtect = 0;
-					if (VirtualProtect(faultAddr, instrLen, PAGE_EXECUTE_READWRITE, &oldProtect))
+					if (Config.HandleExceptions == 2)
+					{
+						ExceptionInfo->ContextRecord->Eip += instrLen;
+						Logging::LogFormat(__FUNCTION__ " Skipping instruction and continuing execution.");
+						return EXCEPTION_CONTINUE_EXECUTION;
+					}
+					else if (VirtualProtect(faultAddr, instrLen, PAGE_EXECUTE_READWRITE, &oldProtect))
 					{
 						memset(faultAddr, 0x90, instrLen); // Patch with NOPs
 						VirtualProtect(faultAddr, instrLen, oldProtect, &oldProtect);

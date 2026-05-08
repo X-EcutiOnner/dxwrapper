@@ -1131,8 +1131,20 @@ HRESULT m_IDirect3DDeviceX::Pick(LPDIRECT3DEXECUTEBUFFER lpDirect3DExecuteBuffer
 
 	if (Config.Dd7to9)
 	{
-		LOG_LIMIT(100, __FUNCTION__ << " Error: Not Implemented");
-		return DDERR_UNSUPPORTED;
+		if (!lpDirect3DExecuteBuffer || !lpDirect3DViewport || !lpRect)
+		{
+			return DDERR_INVALIDPARAMS;
+		}
+
+		LOG_LIMIT(100, __FUNCTION__ << " Warning: Pick not fully implemented!");
+
+		// Clear previous records
+		PickRecords.clear();
+
+		// Minimal compatibility implementation:
+		// pretend nothing was picked
+
+		return D3D_OK;
 	}
 
 	if (lpDirect3DExecuteBuffer)
@@ -1153,8 +1165,32 @@ HRESULT m_IDirect3DDeviceX::GetPickRecords(LPDWORD lpCount, LPD3DPICKRECORD lpD3
 
 	if (Config.Dd7to9)
 	{
-		LOG_LIMIT(100, __FUNCTION__ << " Error: Not Implemented");
-		return DDERR_UNSUPPORTED;
+		if (!lpCount)
+		{
+			return DDERR_INVALIDPARAMS;
+		}
+
+		LOG_LIMIT(100, __FUNCTION__ << " Warning: GetPickRecords not fully implemented!");
+
+		DWORD available = (DWORD)PickRecords.size();
+
+		// Query count only
+		if (!lpD3DPickRec)
+		{
+			*lpCount = available;
+			return D3D_OK;
+		}
+
+		DWORD copyCount = min(*lpCount, available);
+
+		if (copyCount)
+		{
+			memcpy(lpD3DPickRec, PickRecords.data(), copyCount * sizeof(D3DPICKRECORD));
+		}
+
+		*lpCount = copyCount;
+
+		return D3D_OK;
 	}
 
 	return GetProxyInterfaceV1()->GetPickRecords(lpCount, lpD3DPickRec);

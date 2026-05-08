@@ -239,6 +239,9 @@ private:
 	// ExecuteBuffer array
 	std::vector<m_IDirect3DExecuteBuffer*> ExecuteBufferList;
 
+	// Pick records
+	std::vector<D3DPICKRECORD> PickRecords;
+
 	// Vector temporary buffer cache
 	std::vector<BYTE, aligned_allocator<BYTE, 4>> VertexCache;
 

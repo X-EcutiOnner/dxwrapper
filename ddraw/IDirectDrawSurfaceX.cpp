@@ -428,6 +428,8 @@ HRESULT m_IDirectDrawSurfaceX::AddOverlayDirtyRect(LPRECT lpRect)
 
 	if (Config.Dd7to9)
 	{
+		// This method is not currently implemented in any interface.
+
 		LOG_LIMIT(100, __FUNCTION__ << " Error: Not Implemented");
 		return DDERR_UNSUPPORTED;
 	}

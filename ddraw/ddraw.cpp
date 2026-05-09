@@ -784,6 +784,7 @@ void InitDDraw()
 		{
 			Logging::Log() << "Installing Kernel32 hooks";
 			Utils::GetDiskFreeSpaceA_out = (FARPROC)Hook::HotPatch(GetProcAddress(kernel32, "GetDiskFreeSpaceA"), "GetDiskFreeSpaceA", Utils::kernel_GetDiskFreeSpaceA);
+			Utils::GetDiskFreeSpaceExA_out = (FARPROC)Hook::HotPatch(GetProcAddress(kernel32, "GetDiskFreeSpaceExA"), "GetDiskFreeSpaceExA", Utils::kernel_GetDiskFreeSpaceExA);
 			if (!Utils::CreateThread_out)
 			{
 				Utils::CreateThread_out = (FARPROC)Hook::HotPatch(GetProcAddress(kernel32, "CreateThread"), "CreateThread", Utils::kernel_CreateThread);

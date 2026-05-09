@@ -17,6 +17,7 @@ namespace Utils
 	EXPORT_OUT_WRAPPED_PROC(GetModuleFileNameA, unused);
 	EXPORT_OUT_WRAPPED_PROC(GetModuleFileNameW, unused);
 	EXPORT_OUT_WRAPPED_PROC(GetDiskFreeSpaceA, unused);
+	EXPORT_OUT_WRAPPED_PROC(GetDiskFreeSpaceExA, unused);
 	EXPORT_OUT_WRAPPED_PROC(CreateThread, unused);
 	EXPORT_OUT_WRAPPED_PROC(CreateFileA, unused);
 	EXPORT_OUT_WRAPPED_PROC(VirtualAlloc, unused);
@@ -50,6 +51,7 @@ namespace Utils
 	DWORD WINAPI GetModuleFileNameAHandler(HMODULE hModule, LPSTR lpFilename, DWORD nSize);
 	DWORD WINAPI GetModuleFileNameWHandler(HMODULE hModule, LPWSTR lpFilename, DWORD nSize);
 	BOOL WINAPI kernel_GetDiskFreeSpaceA(LPCSTR lpRootPathName, LPDWORD lpSectorsPerCluster, LPDWORD lpBytesPerSector, LPDWORD lpNumberOfFreeClusters, LPDWORD lpTotalNumberOfClusters);
+	BOOL WINAPI kernel_GetDiskFreeSpaceExA(LPCSTR lpDirectoryName, PULARGE_INTEGER lpFreeBytesAvailableToCaller, PULARGE_INTEGER lpTotalNumberOfBytes, PULARGE_INTEGER lpTotalNumberOfFreeBytes);
 	HANDLE WINAPI kernel_CreateThread(LPSECURITY_ATTRIBUTES lpThreadAttributes, SIZE_T dwStackSize, LPTHREAD_START_ROUTINE lpStartAddress, LPVOID lpParameter, DWORD dwCreationFlags, LPDWORD lpThreadId);
 	HANDLE WINAPI kernel_CreateFileA(LPCSTR lpFileName, DWORD dwDesiredAccess, DWORD dwShareMode, LPSECURITY_ATTRIBUTES lpSecurityAttributes, DWORD dwCreationDisposition, DWORD dwFlagsAndAttributes, HANDLE hTemplateFile);
 	LPVOID WINAPI kernel_VirtualAlloc(LPVOID lpAddress, SIZE_T dwSize, DWORD flAllocationType, DWORD flProtect);

@@ -68,6 +68,7 @@ typedef FARPROC(WINAPI *GetProcAddressProc)(HMODULE, LPSTR);
 typedef DWORD(WINAPI *GetModuleFileNameAProc)(HMODULE, LPSTR, DWORD);
 typedef DWORD(WINAPI *GetModuleFileNameWProc)(HMODULE, LPWSTR, DWORD);
 typedef BOOL(WINAPI* GetDiskFreeSpaceAProc)(LPCSTR lpRootPathName, LPDWORD lpSectorsPerCluster, LPDWORD lpBytesPerSector, LPDWORD lpNumberOfFreeClusters, LPDWORD lpTotalNumberOfClusters);
+typedef BOOL(WINAPI* GetDiskFreeSpaceExAProc)(LPCSTR lpDirectoryName, PULARGE_INTEGER lpFreeBytesAvailableToCaller, PULARGE_INTEGER lpTotalNumberOfBytes, PULARGE_INTEGER lpTotalNumberOfFreeBytes);
 typedef BOOL(WINAPI *CreateProcessAFunc)(LPCSTR lpApplicationName, LPSTR lpCommandLine, LPSECURITY_ATTRIBUTES lpProcessAttributes, LPSECURITY_ATTRIBUTES lpThreadAttributes, BOOL bInheritHandles, DWORD dwCreationFlags,
 	LPVOID lpEnvironment, LPCSTR lpCurrentDirectory, LPSTARTUPINFOA lpStartupInfo, LPPROCESS_INFORMATION lpProcessInformation);
 typedef HANDLE(WINAPI* CreateThreadProc)(LPSECURITY_ATTRIBUTES lpThreadAttributes, SIZE_T dwStackSize, LPTHREAD_START_ROUTINE lpStartAddress, LPVOID lpParameter, DWORD dwCreationFlags, LPDWORD lpThreadId);
@@ -121,6 +122,7 @@ namespace Utils
 	INITIALIZE_OUT_WRAPPED_PROC(GetModuleFileNameA, unused);
 	INITIALIZE_OUT_WRAPPED_PROC(GetModuleFileNameW, unused);
 	INITIALIZE_OUT_WRAPPED_PROC(GetDiskFreeSpaceA, unused);
+	INITIALIZE_OUT_WRAPPED_PROC(GetDiskFreeSpaceExA, unused);
 	INITIALIZE_OUT_WRAPPED_PROC(CreateThread, unused);
 	INITIALIZE_OUT_WRAPPED_PROC(CreateFileA, unused);
 	INITIALIZE_OUT_WRAPPED_PROC(VirtualAlloc, unused);
@@ -339,24 +341,85 @@ BOOL WINAPI Utils::kernel_GetDiskFreeSpaceA(LPCSTR lpRootPathName, LPDWORD lpSec
 		return FALSE;
 	}
 
+	// Older games often calculate:
+	// TotalBytes = SectorsPerCluster * BytesPerSector * TotalClusters
+
 	BOOL result = GetDiskFreeSpaceA(lpRootPathName, lpSectorsPerCluster, lpBytesPerSector, lpNumberOfFreeClusters, lpTotalNumberOfClusters);
 
-	// Limit the reported disk space
-	if (lpSectorsPerCluster)
+	if (!result)
 	{
-		*lpSectorsPerCluster = min(0x00000040, *lpSectorsPerCluster);
+		return result;
 	}
-	if (lpBytesPerSector)
+
+	// Keep reported disk size below 2GB
+	const ULONGLONG maxSize = 0x7FFFFFFF;
+
+	const DWORD sectorsPerCluster = (lpSectorsPerCluster && *lpSectorsPerCluster) ? *lpSectorsPerCluster : 1;
+
+	const DWORD bytesPerSector = (lpBytesPerSector && *lpBytesPerSector) ? *lpBytesPerSector : 512;
+
+	ULONGLONG clusterSize = (ULONGLONG)sectorsPerCluster * (ULONGLONG)bytesPerSector;
+
+	if (clusterSize == 0)
 	{
-		*lpBytesPerSector = min(0x00000200, *lpBytesPerSector);
+		clusterSize = 1;
 	}
-	if (lpNumberOfFreeClusters)
-	{
-		*lpNumberOfFreeClusters = min(0x0000F000, *lpNumberOfFreeClusters);
-	}
+
+	const DWORD maxClusters = (DWORD)(maxSize / clusterSize);
+
 	if (lpTotalNumberOfClusters)
 	{
-		*lpTotalNumberOfClusters = min(0x0000FFF6, *lpTotalNumberOfClusters);
+		*lpTotalNumberOfClusters = min(*lpTotalNumberOfClusters, maxClusters);
+	}
+
+	if (lpNumberOfFreeClusters)
+	{
+		const DWORD totalNumberOfClusters = (lpTotalNumberOfClusters && *lpTotalNumberOfClusters) ? *lpTotalNumberOfClusters : maxClusters;
+
+		*lpNumberOfFreeClusters = min(*lpNumberOfFreeClusters, totalNumberOfClusters);
+	}
+
+	return result;
+}
+
+BOOL WINAPI Utils::kernel_GetDiskFreeSpaceExA(LPCSTR lpDirectoryName, PULARGE_INTEGER lpFreeBytesAvailableToCaller, PULARGE_INTEGER lpTotalNumberOfBytes, PULARGE_INTEGER lpTotalNumberOfFreeBytes)
+{
+	Logging::LogDebug() << __FUNCTION__;
+
+	DEFINE_STATIC_PROC_ADDRESS(GetDiskFreeSpaceExAProc, GetDiskFreeSpaceExA, GetDiskFreeSpaceExA_out);
+
+	if (!GetDiskFreeSpaceExA)
+	{
+		return FALSE;
+	}
+
+	BOOL result = GetDiskFreeSpaceExA(lpDirectoryName, lpFreeBytesAvailableToCaller, lpTotalNumberOfBytes, lpTotalNumberOfFreeBytes);
+
+	if (!result)
+	{
+		return result;
+	}
+
+	// Keep reported disk size below 2GB
+	const ULONGLONG maxSize = 0x7FFFFFFF;
+
+	if (lpTotalNumberOfBytes)
+	{
+		lpTotalNumberOfBytes->QuadPart = min(lpTotalNumberOfBytes->QuadPart, maxSize);
+	}
+
+	if (lpTotalNumberOfFreeBytes)
+	{
+		ULONGLONG totalBytes = (lpTotalNumberOfBytes) ? lpTotalNumberOfBytes->QuadPart : maxSize;
+
+		lpTotalNumberOfFreeBytes->QuadPart = min(lpTotalNumberOfFreeBytes->QuadPart, totalBytes);
+	}
+
+	if (lpFreeBytesAvailableToCaller)
+	{
+		ULONGLONG totalBytes = (lpTotalNumberOfBytes) ? lpTotalNumberOfBytes->QuadPart : maxSize;
+
+		lpFreeBytesAvailableToCaller->QuadPart = min(lpFreeBytesAvailableToCaller->QuadPart, totalBytes);
 	}
 
 	return result;

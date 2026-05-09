@@ -410,14 +410,14 @@ BOOL WINAPI Utils::kernel_GetDiskFreeSpaceExA(LPCSTR lpDirectoryName, PULARGE_IN
 
 	if (lpTotalNumberOfFreeBytes)
 	{
-		ULONGLONG totalBytes = (lpTotalNumberOfBytes) ? lpTotalNumberOfBytes->QuadPart : maxSize;
+		const ULONGLONG totalBytes = (lpTotalNumberOfBytes) ? lpTotalNumberOfBytes->QuadPart : maxSize;
 
 		lpTotalNumberOfFreeBytes->QuadPart = min(lpTotalNumberOfFreeBytes->QuadPart, totalBytes);
 	}
 
 	if (lpFreeBytesAvailableToCaller)
 	{
-		ULONGLONG totalBytes = (lpTotalNumberOfBytes) ? lpTotalNumberOfBytes->QuadPart : maxSize;
+		const ULONGLONG totalBytes = (lpTotalNumberOfBytes) ? lpTotalNumberOfBytes->QuadPart : maxSize;
 
 		lpFreeBytesAvailableToCaller->QuadPart = min(lpFreeBytesAvailableToCaller->QuadPart, totalBytes);
 	}

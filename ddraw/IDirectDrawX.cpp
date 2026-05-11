@@ -125,7 +125,6 @@ namespace {
 	LPDIRECT3DPIXELSHADER9 colorkeyPixelShader = nullptr;
 	LPDIRECT3DPIXELSHADER9 gammaPixelShader = nullptr;
 	LPDIRECT3DVERTEXSHADER9 fixupVertexShader = nullptr;
-	LPDIRECT3DVERTEXBUFFER9 validateDeviceVertexBuffer = nullptr;
 	constexpr UINT IndexBufferRotationSize = 3;
 	struct {
 		DX_INDEX_BUFFER IndexBuffer[8] = {
@@ -3203,50 +3202,6 @@ LPDIRECT3DVERTEXSHADER9* m_IDirectDrawX::GetFixupVertexShader()
 	return &fixupVertexShader;
 }
 
-LPDIRECT3DVERTEXBUFFER9 m_IDirectDrawX::GetValidateDeviceVertexBuffer(DWORD& FVF, DWORD& Size)
-{
-	// Create a simple vertex buffer
-	struct SimpleVertex {
-		float x, y, z;
-		DWORD color;
-	};
-
-	SimpleVertex vertices[] = {
-		{ -1.0f,  1.0f, 0.0f, 0xFFFFFFFF },  // Top-left
-		{  1.0f,  1.0f, 0.0f, 0xFFFFFFFF },  // Top-right
-		{  0.0f, -1.0f, 0.0f, 0xFFFFFFFF }   // Bottom-center
-	};
-
-	if (!validateDeviceVertexBuffer)
-	{
-		// Create in video memory and then use discard when locking to improve system performance
-		HRESULT hr = d3d9Device->CreateVertexBuffer(sizeof(vertices), D3DUSAGE_WRITEONLY, D3DFVF_XYZ | D3DFVF_DIFFUSE, D3DPOOL_DEFAULT, &validateDeviceVertexBuffer, NULL);
-		if (FAILED(hr))
-		{
-			LOG_LIMIT(100, __FUNCTION__ << " Error: Failed to create vertex buffer: " << (DDERR)hr);
-			return nullptr;
-		}
-
-		// Fill the vertex buffer with data
-		void* pVertices = nullptr;
-		hr = validateDeviceVertexBuffer->Lock(0, sizeof(vertices), &pVertices, D3DLOCK_DISCARD);
-
-		if (FAILED(hr))
-		{
-			LOG_LIMIT(100, __FUNCTION__ << " Error: Failed to Lock vertex buffer: " << (DDERR)hr);
-			validateDeviceVertexBuffer->Release();
-			return nullptr;
-		}
-
-		memcpy(pVertices, vertices, sizeof(vertices));
-		validateDeviceVertexBuffer->Unlock();
-	}
-
-	Size = sizeof(SimpleVertex);
-	FVF = (D3DFVF_XYZ | D3DFVF_DIFFUSE);
-	return validateDeviceVertexBuffer;
-}
-
 LPDIRECT3DINDEXBUFFER9 m_IDirectDrawX::GetIndexBuffer(LPWORD lpwIndices, DWORD dwIndexCount)
 {
 	static UINT x = 0;
@@ -4512,18 +4467,6 @@ void m_IDirectDrawX::ReleaseAllD9Resources(bool BackupData, bool ResetInterface)
 			Logging::Log() << __FUNCTION__ << " Error: there is still a reference to 'ScreenCopyTexture' " << ref;
 		}
 		ScreenCopyTexture = nullptr;
-	}
-
-	// Release validate device d3d9 vertex buffer
-	if (validateDeviceVertexBuffer)
-	{
-		Logging::LogDebug() << __FUNCTION__ << " Releasing Direct3D9 validate device vertext buffer";
-		ULONG ref = validateDeviceVertexBuffer->Release();
-		if (ref)
-		{
-			Logging::Log() << __FUNCTION__ << " Error: there is still a reference to 'validateDeviceVertexBuffer' " << ref;
-		}
-		validateDeviceVertexBuffer = nullptr;
 	}
 
 	// Release index buffer

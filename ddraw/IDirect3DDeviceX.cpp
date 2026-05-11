@@ -3907,11 +3907,6 @@ HRESULT m_IDirect3DDeviceX::ValidateDevice(LPDWORD lpdwPasses)
 
 	if (Config.Dd7to9)
 	{
-		if (!lpdwPasses)
-		{
-			return DDERR_INVALIDPARAMS;
-		}
-
 		// Check for device interface
 		if (FAILED(CheckInterface(__FUNCTION__, true)))
 		{
@@ -3924,25 +3919,102 @@ HRESULT m_IDirect3DDeviceX::ValidateDevice(LPDWORD lpdwPasses)
 
 		ScopedCriticalSection ThreadLockDD(DdrawWrapper::GetDDCriticalSection());
 
-		PrepDevice();
-
-		DWORD FVF, Size;
-		IDirect3DVertexBuffer9* vertexBuffer = ddrawParent->GetValidateDeviceVertexBuffer(FVF, Size);
-
-		if (!vertexBuffer)
+		// Simple transformed/lit vertex
+		struct VALIDATEVERTEX
 		{
-			LOG_LIMIT(100, __FUNCTION__ << " Error: Failed to get vertex buffer!");
-			return DDERR_GENERIC;
+			float x, y, z, rhw;
+			DWORD color;
+		};
+
+		const DWORD ValidateFVF = D3DFVF_XYZRHW | D3DFVF_DIFFUSE;
+
+		// Use a degenerate triangle
+		VALIDATEVERTEX verts[3] =
+		{
+			{ 0.0f, 0.0f, 0.5f, 1.0f, 0x00000000 },
+			{ 0.0f, 0.0f, 0.5f, 1.0f, 0x00000000 },
+			{ 0.0f, 0.0f, 0.5f, 1.0f, 0x00000000 }
+		};
+
+		// Set standard draw states
+		DWORD dwFlags = 0;
+		SetDrawStates(ValidateFVF, dwFlags, 7);
+
+		DWORD OldColorWrite = 0;
+		DWORD OldZWrite = 0;
+		DWORD OldStencilEnable = 0;
+
+		// Save minimal state
+		(*d3d9Device)->GetRenderState(D3DRS_COLORWRITEENABLE, &OldColorWrite);
+		(*d3d9Device)->GetRenderState(D3DRS_ZWRITEENABLE, &OldZWrite);
+		(*d3d9Device)->GetRenderState(D3DRS_STENCILENABLE, &OldStencilEnable);
+
+		// Disable color writes
+		(*d3d9Device)->SetRenderState(D3DRS_COLORWRITEENABLE, 0);
+		(*d3d9Device)->SetRenderState(D3DRS_ZWRITEENABLE, FALSE);
+		(*d3d9Device)->SetRenderState(D3DRS_STENCILENABLE, FALSE);
+
+		// Clear shaders since FVF + shaders conflict
+		(*d3d9Device)->SetVertexShader(nullptr);
+		(*d3d9Device)->SetPixelShader(nullptr);
+
+		// Set fixed function format
+		(*d3d9Device)->SetFVF(ValidateFVF);
+
+		// Force D3D9 to internally validate stream setup
+		(*d3d9Device)->DrawPrimitiveUP(D3DPT_TRIANGLELIST, 1, verts, sizeof(VALIDATEVERTEX));
+
+		// Now validate device
+		DWORD DummyPasses = 1;
+		HRESULT hr = (*d3d9Device)->ValidateDevice(&DummyPasses);
+
+		if (!lpdwPasses)
+		{
+			lpdwPasses = &DummyPasses;
+			*lpdwPasses = max(*lpdwPasses, 1ul);
 		}
 
-		// Bind the vertex buffer to the device
-		(*d3d9Device)->SetStreamSource(0, vertexBuffer, 0, Size);
+		// Restore state
+		(*d3d9Device)->SetRenderState(D3DRS_COLORWRITEENABLE, OldColorWrite);
+		(*d3d9Device)->SetRenderState(D3DRS_ZWRITEENABLE, OldZWrite);
+		(*d3d9Device)->SetRenderState(D3DRS_STENCILENABLE, OldStencilEnable);
 
-		// Set a simple FVF (Flexible Vertex Format)
-		(*d3d9Device)->SetFVF(FVF);
+		// Handle dwFlags
+		RestoreDrawStates(DDERR_GENERIC, dwFlags, 7);
 
-		// Call ValidateDevice
-		HRESULT hr = (*d3d9Device)->ValidateDevice(lpdwPasses);
+		// Update return values
+		switch (hr)
+		{
+			// Direct mappings
+		case D3D_OK:
+		case D3DERR_CONFLICTINGTEXTUREFILTER:
+		case D3DERR_TOOMANYOPERATIONS:
+		case D3DERR_UNSUPPORTEDALPHAARG:
+		case D3DERR_UNSUPPORTEDALPHAOPERATION:
+		case D3DERR_UNSUPPORTEDCOLORARG:
+		case D3DERR_UNSUPPORTEDCOLOROPERATION:
+		case D3DERR_UNSUPPORTEDFACTORVALUE:
+		case D3DERR_UNSUPPORTEDTEXTUREFILTER:
+		case D3DERR_WRONGTEXTUREFORMAT:
+			break;
+
+			// D3D9-only errors
+		case D3DERR_CONFLICTINGRENDERSTATE:
+			hr = D3D_OK;
+			break;
+
+		case D3DERR_DEVICELOST:
+			hr = DDERR_SURFACELOST;
+			break;
+
+		case D3DERR_DRIVERINTERNALERROR:
+			hr = DDERR_INVALIDOBJECT;
+			break;
+
+		default:
+			hr = DDERR_GENERIC;
+			break;
+		}
 
 		if (FAILED(hr))
 		{

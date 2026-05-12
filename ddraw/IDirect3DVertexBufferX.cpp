@@ -1067,6 +1067,10 @@ HRESULT m_IDirect3DVertexBufferX::ProcessVerticesUP(DWORD dwVertexOp, DWORD dwDe
 		{
 			offset += sizeof(float) * 3;
 		}
+		if (DestFVF & D3DFVF_RESERVED1)
+		{
+			offset += sizeof(DWORD);
+		}
 		if (DestFVF & D3DFVF_DIFFUSE)
 		{
 			DiffuseDestOffset = offset;
@@ -1084,6 +1088,10 @@ HRESULT m_IDirect3DVertexBufferX::ProcessVerticesUP(DWORD dwVertexOp, DWORD dwDe
 		{
 			NormalSrcOffset = offset;
 			offset += sizeof(float) * 3;
+		}
+		if (SrcFVF & D3DFVF_RESERVED1)
+		{
+			offset += sizeof(DWORD);
 		}
 		if (SrcFVF & D3DFVF_DIFFUSE)
 		{
@@ -1117,6 +1125,14 @@ HRESULT m_IDirect3DVertexBufferX::ProcessVerticesUP(DWORD dwVertexOp, DWORD dwDe
 	D3DMATRIX matWorldView = {}, matWorldViewProj = {};
 	D3DXMatrixMultiply(&matWorldView, &matWorld, &matView);
 	D3DXMatrixMultiply(&matWorldViewProj, &matWorldView, &matProj);
+
+	// Get viewport
+	D3DVIEWPORT7 vp = {};
+	if (FAILED(pDirect3DDeviceX->GetViewport(&vp)))
+	{
+		LOG_LIMIT(100, __FUNCTION__ << " Error: Failed to get viewport");
+		return DDERR_GENERIC;
+	}
 
 	// Cache specular, ambient, material and lights if needed
 	bool UseSpecular = false;
@@ -1185,19 +1201,28 @@ HRESULT m_IDirect3DVertexBufferX::ProcessVerticesUP(DWORD dwVertexOp, DWORD dwDe
 			}
 		}
 
-		// Transform vertex
+		// Source position
 		D3DXVECTOR3& src = *reinterpret_cast<D3DXVECTOR3*>(pSrcVertex);
-		D3DXVECTOR4& dst = *reinterpret_cast<D3DXVECTOR4*>(pDestVertex);
-
-		D3DXVECTOR4 h;
 		D3DXVECTOR4 pos4(src.x, src.y, src.z, 1.0f);
+
+		// View-space position
+		D3DXVECTOR4 viewPos4;
+		D3DXVec4Transform(&viewPos4, &pos4, &matWorldView);
+
+		// Projection-space position
+		D3DXVECTOR4 h;
 		D3DXVec4Transform(&h, &pos4, &matWorldViewProj);
 
-		float rhw = (h.w != 0.0f) ? (1.0f / h.w) : 0.0f;
+		// Output vertex
+		D3DXVECTOR4& dst = *reinterpret_cast<D3DXVECTOR4*>(pDestVertex);
 
-		dst.x = h.x * rhw;
-		dst.y = h.y * rhw;
-		dst.z = h.z * rhw;
+		// Preserve INF/NAN behavior
+		float rhw = 1.0f / h.w;
+
+		// Convert to screen-space TL coords
+		dst.x = vp.dwX + ((h.x * rhw + 1.0f) * vp.dwWidth * 0.5f);
+		dst.y = vp.dwY + ((1.0f - h.y * rhw) * vp.dwHeight * 0.5f);
+		dst.z = vp.dvMinZ + ((h.z * rhw) * (vp.dvMaxZ - vp.dvMinZ));
 		dst.w = rhw;
 
 		// Lighting
@@ -1206,25 +1231,30 @@ HRESULT m_IDirect3DVertexBufferX::ProcessVerticesUP(DWORD dwVertexOp, DWORD dwDe
 			D3DCOLOR Diffuse = 0, Specular = 0;
 
 			// Extract rotation from world matrix
-			D3DMATRIX matWorldRotOnly = matWorld;
-			matWorldRotOnly._41 = 0.0f;
-			matWorldRotOnly._42 = 0.0f;
-			matWorldRotOnly._43 = 0.0f;
-			matWorldRotOnly._14 = 0.0f;
-			matWorldRotOnly._24 = 0.0f;
-			matWorldRotOnly._34 = 0.0f;
-			matWorldRotOnly._44 = 1.0f;
+			D3DMATRIX matWorldViewRotOnly = matWorldView;
+			matWorldViewRotOnly._41 = 0.0f;
+			matWorldViewRotOnly._42 = 0.0f;
+			matWorldViewRotOnly._43 = 0.0f;
+			matWorldViewRotOnly._14 = 0.0f;
+			matWorldViewRotOnly._24 = 0.0f;
+			matWorldViewRotOnly._34 = 0.0f;
+			matWorldViewRotOnly._44 = 1.0f;
 
 			// Transform normal
 			D3DXVECTOR3 normal = *reinterpret_cast<D3DXVECTOR3*>(pSrcVertex + NormalSrcOffset);
 			D3DXVECTOR3 transformedNormal;
-			D3DXVec3TransformNormal(&transformedNormal, &normal, &matWorldRotOnly);
-			if (D3DXVec3LengthSq(&normal) > 1e-12f)
+			D3DXVec3TransformNormal(&transformedNormal, &normal, &matWorldViewRotOnly);
+			if (D3DXVec3LengthSq(&transformedNormal) > 1e-12f)
 			{
 				D3DXVec3Normalize(&transformedNormal, &transformedNormal);
 			}
 
-			D3DXVECTOR3 transformedPos = { dst.x, dst.y, dst.z };
+			D3DXVECTOR3 transformedPos =
+			{
+				viewPos4.x / viewPos4.w,
+				viewPos4.y / viewPos4.w,
+				viewPos4.z / viewPos4.w
+			};
 
 			ComputeLighting(transformedPos, transformedNormal, cachedLights, lpMaterial, ambient, UseSpecular, Diffuse, Specular);
 
@@ -1320,22 +1350,40 @@ HRESULT m_IDirect3DVertexBufferX::TransformVertexUP(m_IDirect3DDeviceX* pDirect3
 	D3DXMatrixMultiply(&matWorldView, &matWorld, &matView);
 	D3DXMatrixMultiply(&matWorldViewProj, &matWorldView, &matProj);
 
+	// Get viewport
+	D3DVIEWPORT7 vp = {};
+	if (FAILED(pDirect3DDeviceX->GetViewport(&vp)))
+	{
+		LOG_LIMIT(100, __FUNCTION__ << " Error: Failed to get viewport");
+		return DDERR_GENERIC;
+	}
+
 	D3DRECT newExtents = { LONG_MAX, LONG_MAX, LONG_MIN, LONG_MIN };
 
 	for (DWORD i = 0; i < dwCount; ++i)
 	{
+		// Source position
 		T& src = srcVertex[i];
-		D3DTLVERTEX& dst = destVertex[i];
-
-		D3DXVECTOR4 h;
 		D3DXVECTOR4 pos4(src.x, src.y, src.z, 1.0f);
+
+		// View-space position
+		D3DXVECTOR4 viewPos4;
+		D3DXVec4Transform(&viewPos4, &pos4, &matWorldView);
+
+		// Projection-space position
+		D3DXVECTOR4 h;
 		D3DXVec4Transform(&h, &pos4, &matWorldViewProj);
 
-		float rhw = (h.w != 0.0f) ? (1.0f / h.w) : 0.0f;
+		// Output vertex
+		D3DTLVERTEX& dst = destVertex[i];
 
-		dst.sx = h.x * rhw;
-		dst.sy = h.y * rhw;
-		dst.sz = h.z * rhw;
+		// Preserve INF/NAN behavior
+		float rhw = 1.0f / h.w;
+
+		// Convert to screen-space TL coords
+		dst.sx = vp.dwX + ((h.x * rhw + 1.0f) * vp.dwWidth * 0.5f);
+		dst.sy = vp.dwY + ((1.0f - h.y * rhw) * vp.dwHeight * 0.5f);
+		dst.sz = vp.dvMinZ + ((h.z * rhw) * (vp.dvMaxZ - vp.dvMinZ));
 		dst.rhw = rhw;
 
 		// Default values: set for XYZ or copy for detailed vertex
@@ -1351,20 +1399,20 @@ HRESULT m_IDirect3DVertexBufferX::TransformVertexUP(m_IDirect3DDeviceX* pDirect3
 			D3DCOLOR Diffuse = 0, Specular = 0;
 
 			// Extract rotation from world matrix
-			D3DMATRIX matWorldRotOnly = matWorld;
-			matWorldRotOnly._41 = 0.0f;
-			matWorldRotOnly._42 = 0.0f;
-			matWorldRotOnly._43 = 0.0f;
-			matWorldRotOnly._14 = 0.0f;
-			matWorldRotOnly._24 = 0.0f;
-			matWorldRotOnly._34 = 0.0f;
-			matWorldRotOnly._44 = 1.0f;
+			D3DMATRIX matWorldViewRotOnly = matWorldView;
+			matWorldViewRotOnly._41 = 0.0f;
+			matWorldViewRotOnly._42 = 0.0f;
+			matWorldViewRotOnly._43 = 0.0f;
+			matWorldViewRotOnly._14 = 0.0f;
+			matWorldViewRotOnly._24 = 0.0f;
+			matWorldViewRotOnly._34 = 0.0f;
+			matWorldViewRotOnly._44 = 1.0f;
 
 			// Transform normal
 			D3DXVECTOR3 normal = { src.nx, src.ny, src.nz };
 			D3DXVECTOR3 transformedNormal;
-			D3DXVec3TransformNormal(&transformedNormal, &normal, &matWorldRotOnly);
-			if (D3DXVec3LengthSq(&normal) > 1e-12f)
+			D3DXVec3TransformNormal(&transformedNormal, &normal, &matWorldViewRotOnly);
+			if (D3DXVec3LengthSq(&transformedNormal) > 1e-12f)
 			{
 				D3DXVec3Normalize(&transformedNormal, &transformedNormal);
 			}

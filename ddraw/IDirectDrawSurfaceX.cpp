@@ -4025,6 +4025,91 @@ void m_IDirectDrawSurfaceX::ReleaseInterface()
 	}
 }
 
+ULONG m_IDirectDrawSurfaceX::AddRefRoot(LPDIRECTDRAWSURFACE7 WrapperAddress)
+{
+	if (!WrapperAddress)
+	{
+		LOG_LIMIT(100, __FUNCTION__ << " Error: no wrapper address sent!");
+		return 0;
+	}
+
+	if (ComplexChild)
+	{
+		LPDIRECTDRAWSURFACE7 WrapperRootX = GetWrapperInterfaceRootX(WrapperAddress);
+		if (WrapperRootX)
+		{
+			return WrapperRootX->AddRef();
+		}
+	}
+
+	return WrapperAddress->AddRef();
+}
+
+ULONG m_IDirectDrawSurfaceX::ReleaseRoot(LPDIRECTDRAWSURFACE7 WrapperAddress)
+{
+	if (!WrapperAddress)
+	{
+		LOG_LIMIT(100, __FUNCTION__ << " Error: no wrapper address sent!");
+		return 0;
+	}
+
+	if (ComplexChild)
+	{
+		LPDIRECTDRAWSURFACE7 WrapperRootX = GetWrapperInterfaceRootX(WrapperAddress);
+		if (WrapperRootX)
+		{
+			return WrapperRootX->Release();
+		}
+	}
+
+	return WrapperAddress->Release();
+}
+
+LPDIRECTDRAWSURFACE7 m_IDirectDrawSurfaceX::GetWrapperInterfaceRootX(LPDIRECTDRAWSURFACE7 WrapperAddress)
+{
+	const DWORD DirectXVersion =
+		((void*)WrapperAddress == (void*)WrapperInterface7) ? 7 :
+		((void*)WrapperAddress == (void*)WrapperInterface4) ? 4 :
+		((void*)WrapperAddress == (void*)WrapperInterface3) ? 3 :
+		((void*)WrapperAddress == (void*)WrapperInterface2) ? 2 :
+		((void*)WrapperAddress == (void*)WrapperInterface) ? 1 :
+		0;
+
+	if (!DirectXVersion)
+	{
+		LOG_LIMIT(100, __FUNCTION__ << " Error: could not find wrapper address! " << WrapperAddress);
+		return nullptr;
+	}
+
+	m_IDirectDrawSurfaceX* lpTargetSurface = this;
+	do {
+		// Loop through each surface
+		for (auto& it : lpTargetSurface->AttachedSurfaceMap)
+		{
+			if (it.second.pSurface->ComplexChild || it.second.pSurface->ComplexRoot)
+			{
+				lpTargetSurface = it.second.pSurface;
+				break;
+			}
+		}
+
+		// Stop looping when at end of loop
+		if (!lpTargetSurface || lpTargetSurface == this)
+		{
+			LOG_LIMIT(100, __FUNCTION__ << " Error: Could not find ComplexRoot!");
+			break;
+		}
+
+		// Stop looping when complex root is found
+		if (lpTargetSurface->ComplexRoot)
+		{
+			return (LPDIRECTDRAWSURFACE7)lpTargetSurface->GetWrapperInterfaceX(DirectXVersion);
+		}
+	} while (true);
+
+	return nullptr;
+}
+
 HRESULT m_IDirectDrawSurfaceX::CheckLostInterface(char* FunctionName)
 {
 	// Check if device is lost

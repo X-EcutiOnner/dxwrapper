@@ -531,6 +531,9 @@ public:
 	void *GetWrapperInterfaceX(DWORD DirectXVersion);
 	ULONG AddRef(DWORD DirectXVersion);
 	ULONG Release(DWORD DirectXVersion);
+	ULONG AddRefRoot(LPDIRECTDRAWSURFACE7 WrapperAddress);
+	ULONG ReleaseRoot(LPDIRECTDRAWSURFACE7 WrapperAddress);
+	LPDIRECTDRAWSURFACE7 GetWrapperInterfaceRootX(LPDIRECTDRAWSURFACE7 WrapperAddress);
 
 	// Fix byte alignment issue
 	void LockEmuLock(LPRECT lpDestRect, LPDDSURFACEDESC2 lpDDSurfaceDesc);

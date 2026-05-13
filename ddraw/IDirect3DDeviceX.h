@@ -211,6 +211,10 @@ private:
 	D3DCAPS9 Caps9 = {};
 	D3DVIEWPORT9 DefaultViewport = {};
 
+	// Attached surface
+	LPDIRECTDRAWSURFACE7 AttachedSurface = nullptr;
+	m_IDirectDrawSurfaceX* lpAttachedSurfaceX = nullptr;
+
 	// Render target
 	LPDIRECTDRAWSURFACE7 CurrentRenderTarget = nullptr;
 	m_IDirectDrawSurfaceX* lpCurrentRenderTargetX = nullptr;
@@ -367,7 +371,7 @@ public:
 		InitInterface(DirectXVersion);
 	}
 	m_IDirect3DDeviceX(m_IDirectDrawX* lpDdraw, m_IDirect3DX* lpD3D, LPDIRECTDRAWSURFACE7 pRenderTarget, REFCLSID rclsid, DWORD DirectXVersion) :
-		ddrawParent(lpDdraw), D3DInterface(lpD3D), CurrentRenderTarget(pRenderTarget), ClassID(rclsid)
+		ddrawParent(lpDdraw), D3DInterface(lpD3D), AttachedSurface(pRenderTarget), ClassID(rclsid)
 	{
 		ProxyDirectXVersion = 9;
 

@@ -1667,15 +1667,7 @@ HRESULT m_IDirect3DDeviceX::SetRenderTarget(LPDIRECTDRAWSURFACE7 lpNewRenderTarg
 
 		if (SUCCEEDED(hr))
 		{
-			if (CurrentRenderTarget)
-			{
-				CurrentRenderTarget->Release();
-			}
-
 			CurrentRenderTarget = lpNewRenderTarget;
-
-			CurrentRenderTarget->AddRef();
-
 			lpCurrentRenderTargetX = lpDDSrcSurfaceX;
 
 			DWORD OldDepthBits = DepthBitCount;
@@ -4990,15 +4982,18 @@ void m_IDirect3DDeviceX::InitInterface(DWORD DirectXVersion)
 		{
 			d3d9Device = ddrawParent->GetDirectD9Device();
 
-			if (CurrentRenderTarget)
+			if (AttachedSurface)
 			{
 				m_IDirectDrawSurfaceX* lpDDSrcSurfaceX = nullptr;
 
-				CurrentRenderTarget->QueryInterface(IID_GetInterfaceX, (LPVOID*)&lpDDSrcSurfaceX);
+				AttachedSurface->QueryInterface(IID_GetInterfaceX, (LPVOID*)&lpDDSrcSurfaceX);
 				if (lpDDSrcSurfaceX)
 				{
-					CurrentRenderTarget->AddRef();
+					lpAttachedSurfaceX = lpDDSrcSurfaceX;
 
+					lpAttachedSurfaceX->AddRefRoot(AttachedSurface);
+
+					CurrentRenderTarget = AttachedSurface;
 					lpCurrentRenderTargetX = lpDDSrcSurfaceX;
 
 					DepthBitCount = lpDDSrcSurfaceX->GetAttachedStencilSurfaceZBits();
@@ -5019,13 +5014,15 @@ void m_IDirect3DDeviceX::ReleaseInterface()
 		return;
 	}
 
-	if (CurrentRenderTarget)
+	if (AttachedSurface && lpAttachedSurfaceX)
 	{
-		lpCurrentRenderTargetX = nullptr;
-
-		CurrentRenderTarget->Release();
-		CurrentRenderTarget = nullptr;
+		lpAttachedSurfaceX->ReleaseRoot(AttachedSurface);
 	}
+	AttachedSurface = nullptr;
+	lpAttachedSurfaceX = nullptr;
+
+	lpCurrentRenderTargetX = nullptr;
+	CurrentRenderTarget = nullptr;
 
 	if (D3DInterface)
 	{
@@ -5367,6 +5364,12 @@ void m_IDirect3DDeviceX::ClearSurface(m_IDirectDrawSurfaceX* lpSurfaceX)
 		CurrentRenderTarget = nullptr;
 		lpCurrentRenderTargetX = nullptr;
 		LOG_LIMIT(100, __FUNCTION__ << " Warning: clearing current render target!");
+	}
+	if (lpAttachedSurfaceX == lpSurfaceX)
+	{
+		AttachedSurface = nullptr;
+		lpAttachedSurfaceX = nullptr;
+		LOG_LIMIT(100, __FUNCTION__ << " Warning: clearing attached surface!");
 	}
 	for (UINT x = 0; x < D3DHAL_TSS_MAXSTAGES; x++)
 	{

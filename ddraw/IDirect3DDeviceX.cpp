@@ -3449,6 +3449,9 @@ HRESULT m_IDirect3DDeviceX::DrawPrimitiveVB(D3DPRIMITIVETYPE dptPrimitiveType, L
 		// Handle dwFlags
 		RestoreDrawStates(hr, dwFlags, DirectXVersion);
 
+		// Reset stream source
+		(*d3d9Device)->SetStreamSource(0, nullptr, 0, 0);
+
 		if (FAILED(hr))
 		{
 			LOG_LIMIT(100, __FUNCTION__ << " Error: 'DrawPrimitive' call failed: " << (D3DERR)hr);
@@ -3551,7 +3554,7 @@ HRESULT m_IDirect3DDeviceX::DrawIndexedPrimitiveVB(D3DPRIMITIVETYPE dptPrimitive
 		// Set stream source
 		(*d3d9Device)->SetStreamSource(0, d3d9VertexBuffer, 0, GetVertexStride(FVF));
 
-		// Set Index data
+		// Set index data
 		(*d3d9Device)->SetIndices(d3d9IndexBuffer);
 
 		// Handle dwFlags
@@ -3562,6 +3565,12 @@ HRESULT m_IDirect3DDeviceX::DrawIndexedPrimitiveVB(D3DPRIMITIVETYPE dptPrimitive
 
 		// Handle dwFlags
 		RestoreDrawStates(hr, dwFlags, DirectXVersion);
+
+		// Reset indices
+		(*d3d9Device)->SetIndices(nullptr);
+
+		// Reset stream source
+		(*d3d9Device)->SetStreamSource(0, nullptr, 0, 0);
 
 		if (FAILED(hr))
 		{
@@ -6686,10 +6695,6 @@ void m_IDirect3DDeviceX::SetDrawStates(DWORD dwVertexTypeDesc, DWORD& dwFlags, D
 				CurrentTextureSurfaceX[x]->GenerateMipMapLevels();
 			}
 		}
-		else
-		{
-			(*d3d9Device)->SetTexture(x, nullptr);
-		}
 	}
 	if (UsingColorKey)
 	{
@@ -6788,6 +6793,13 @@ void m_IDirect3DDeviceX::RestoreDrawStates(HRESULT hr, DWORD dwFlags, DWORD Dire
 		SetD9RenderState(D3DRS_ALPHATESTENABLE, DrawStates.rsAlphaTestEnable);
 		SetD9RenderState(D3DRS_ALPHAFUNC, DrawStates.rsAlphaFunc);
 		SetD9RenderState(D3DRS_ALPHAREF, DrawStates.rsAlphaRef);
+	}
+	for (UINT x = 0; x < D3DHAL_TSS_MAXSTAGES; x++)
+	{
+		if (CurrentTextureSurfaceX[x])
+		{
+			(*d3d9Device)->SetTexture(x, nullptr);
+		}
 	}
 	if (dwFlags & D3DDP_DXW_COLORKEYENABLE)
 	{

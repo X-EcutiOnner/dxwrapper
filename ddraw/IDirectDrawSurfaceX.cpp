@@ -5808,6 +5808,12 @@ void m_IDirectDrawSurfaceX::ReleaseD9Surface(bool BackupData, bool ResetSurface)
 		ReleaseDCSurface();
 	}
 
+	// Check if surface is render target or  depth stencil
+	if (ddrawParent->GetRenderTargetSurface() == this || ddrawParent->GetDepthStencilSurface() == this)
+	{
+		ddrawParent->ClearRenderTarget();
+	}
+
 	ReleaseD9AuxiliarySurfaces();
 
 	// Release d3d9 3D surface
@@ -8107,7 +8113,7 @@ HRESULT m_IDirectDrawSurfaceX::CopyZBuffer(m_IDirectDrawSurfaceX* pSourceSurface
 		return DDERR_UNSUPPORTED;
 	}
 
-	bool IsUsingCurrentZBuffer = (ddrawParent->GetDepthStencilSurface() == this);
+	const bool IsUsingCurrentZBuffer = (ddrawParent->GetDepthStencilSurface() == this);
 
 	// Set new depth stencil
 	ComPtr<IDirect3DSurface9> pDepthStencil = nullptr;

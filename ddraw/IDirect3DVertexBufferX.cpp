@@ -336,6 +336,16 @@ HRESULT m_IDirect3DVertexBufferX::ProcessVertices(DWORD dwVertexOp, DWORD dwDest
 
 		// Get FVF
 		DWORD dwSrcVertexTypeDesc = pSrcVertexBufferX->VB.Desc.dwFVF;
+		DWORD dwDestVertexTypeDesc = VB.Desc.dwFVF;
+
+		// Validate destination range
+		DWORD DestNumVertices = VB.Desc.dwNumVertices;
+		if (dwDestIndex >= DestNumVertices)
+		{
+			LOG_LIMIT(100, __FUNCTION__ << " Error: destination vertex index is too large: " << DestNumVertices << " -> " << dwDestIndex);
+			return D3DERR_INVALIDVERTEXTYPE;
+		}
+		dwCount = min(dwCount, DestNumVertices - dwDestIndex);
 
 		// Check the dwSrcIndex and dwCount to make sure they won't cause an overload
 		DWORD SrcNumVertices = pSrcVertexBufferX->VB.Desc.dwNumVertices;
@@ -355,7 +365,21 @@ HRESULT m_IDirect3DVertexBufferX::ProcessVertices(DWORD dwVertexOp, DWORD dwDest
 			return DDERR_GENERIC;
 		}
 
-		HRESULT hr = ProcessVerticesUP(dwVertexOp, dwDestIndex, dwCount, pSrcVertices, dwSrcVertexTypeDesc, dwSrcIndex, lpD3DDevice, dwFlags);
+		// Lock destination buffer
+		void* pDestVertices = nullptr;
+		if (FAILED(Lock(0, &pDestVertices, 0)))
+		{
+			LOG_LIMIT(100, __FUNCTION__ << " Error: failed to lock destination vertex");
+			pSrcVertexBufferX->Unlock();
+			return DDERR_GENERIC;
+		}
+
+		D3DRECT drExtent = { LONG_MAX, LONG_MAX, LONG_MIN, LONG_MIN };
+
+		HRESULT hr = ProcessVerticesUP(dwVertexOp, pDestVertices, dwDestVertexTypeDesc, dwDestIndex, dwCount, pSrcVertices, dwSrcVertexTypeDesc, dwSrcIndex, drExtent, lpD3DDevice, dwFlags);
+
+		// Unlock destination vertex buffer
+		Unlock();
 
 		// Unlock the source vertex buffer
 		pSrcVertexBufferX->Unlock();
@@ -457,6 +481,18 @@ HRESULT m_IDirect3DVertexBufferX::ProcessVerticesStrided(DWORD dwVertexOp, DWORD
 		auto startTime = std::chrono::high_resolution_clock::now();
 #endif
 
+		// Get FVF
+		DWORD dwDestVertexTypeDesc = VB.Desc.dwFVF;
+
+		// Validate destination range
+		DWORD DestNumVertices = VB.Desc.dwNumVertices;
+		if (dwDestIndex >= DestNumVertices)
+		{
+			LOG_LIMIT(100, __FUNCTION__ << " Error: destination vertex index is too large: " << DestNumVertices << " -> " << dwDestIndex);
+			return D3DERR_INVALIDVERTEXTYPE;
+		}
+		dwCount = min(dwCount, DestNumVertices - dwDestIndex);
+
 		// Setup vars
 		DWORD dwVertexTypeDesc = VB.Desc.dwFVF;
 		std::vector<BYTE, aligned_allocator<BYTE, 4>> VertexCache;
@@ -468,7 +504,20 @@ HRESULT m_IDirect3DVertexBufferX::ProcessVerticesStrided(DWORD dwVertexOp, DWORD
 			return DDERR_INVALIDPARAMS;
 		}
 
-		HRESULT hr = ProcessVerticesUP(dwVertexOp, dwDestIndex, dwCount, VertexCache.data(), dwVertexTypeDesc, dwSrcIndex, lpD3DDevice, dwFlags);
+		// Lock destination buffer
+		void* pDestVertices = nullptr;
+		if (FAILED(Lock(0, &pDestVertices, 0)))
+		{
+			LOG_LIMIT(100, __FUNCTION__ << " Error: failed to lock destination vertex");
+			return DDERR_GENERIC;
+		}
+
+		D3DRECT drExtent = { LONG_MAX, LONG_MAX, LONG_MIN, LONG_MIN };
+
+		HRESULT hr = ProcessVerticesUP(dwVertexOp, pDestVertices, dwDestVertexTypeDesc, dwDestIndex, dwCount, VertexCache.data(), dwVertexTypeDesc, dwSrcIndex, drExtent, lpD3DDevice, dwFlags);
+
+		// Unlock destination vertex buffer
+		Unlock();
 
 #ifdef ENABLE_PROFILING
 		Logging::Log() << __FUNCTION__ << " (" << this << ") hr = " << (D3DERR)hr << " Timing = " << Logging::GetTimeLapseInMS(startTime);
@@ -985,14 +1034,14 @@ bool m_IDirect3DVertexBufferX::InterleaveStridedVertexData(std::vector<BYTE, ali
 	return true;
 }
 
-HRESULT m_IDirect3DVertexBufferX::ProcessVerticesUP(DWORD dwVertexOp, DWORD dwDestIndex, DWORD dwCount, LPVOID lpSrcBuffer, DWORD dwSrcVertexTypeDesc, DWORD dwSrcIndex, LPDIRECT3DDEVICE7 lpD3DDevice, DWORD dwFlags)
+HRESULT m_IDirect3DVertexBufferX::ProcessVerticesUP(DWORD dwVertexOp, LPVOID lpDestBuffer, DWORD dwDestVertexTypeDesc, DWORD dwDestIndex, DWORD dwCount, LPVOID lpSrcBuffer, DWORD dwSrcVertexTypeDesc, DWORD dwSrcIndex, D3DRECT& drExtent, LPDIRECT3DDEVICE7 lpD3DDevice, DWORD dwFlags)
 {
 	if (dwCount == 0)
 	{
 		return D3D_OK;	// No vertices to process
 	}
 
-	if (!lpSrcBuffer || !lpD3DDevice)
+	if (!lpDestBuffer || !lpSrcBuffer || !lpD3DDevice)
 	{
 		return DDERR_INVALIDPARAMS;
 	}
@@ -1006,18 +1055,9 @@ HRESULT m_IDirect3DVertexBufferX::ProcessVerticesUP(DWORD dwVertexOp, DWORD dwDe
 		return DDERR_GENERIC;
 	}
 
-	// Validate destination range
-	DWORD DestNumVertices = VB.Desc.dwNumVertices;
-	if (dwDestIndex >= DestNumVertices)
-	{
-		LOG_LIMIT(100, __FUNCTION__ << " Error: destination vertex index is too large: " << DestNumVertices << " -> " << dwDestIndex);
-		return D3DERR_INVALIDVERTEXTYPE;
-	}
-	dwCount = min(dwCount, DestNumVertices - dwDestIndex);
-
 	// Get and verify FVF
 	DWORD SrcFVF = dwSrcVertexTypeDesc;
-	DWORD DestFVF = VB.Desc.dwFVF;
+	DWORD DestFVF = dwDestVertexTypeDesc;
 	UINT SrcStride = GetVertexStride(SrcFVF);
 	UINT DestStride = GetVertexStride(DestFVF);
 	DWORD SrcPosFVF = SrcFVF & D3DFVF_POSITION_MASK;
@@ -1048,6 +1088,7 @@ HRESULT m_IDirect3DVertexBufferX::ProcessVerticesUP(DWORD dwVertexOp, DWORD dwDe
 
 	bool DoNotCopyData = (dwFlags & D3DPV_DONOTCOPYDATA) != 0;
 	bool bLighting = (dwVertexOp & D3DVOP_LIGHT);
+	bool bUpdateExtents = (dwVertexOp & D3DVOP_EXTENTS);
 
 	// Check lighting state
 	if (bLighting)
@@ -1207,16 +1248,8 @@ HRESULT m_IDirect3DVertexBufferX::ProcessVerticesUP(DWORD dwVertexOp, DWORD dwDe
 		D3DXMatrixTranspose(&matNormal, &matNormal);
 	}
 
-	// Lock destination buffer
-	void* pDestVertices = nullptr;
-	if (FAILED(Lock(0, &pDestVertices, 0)))
-	{
-		LOG_LIMIT(100, __FUNCTION__ << " Error: failed to lock destination vertex");
-		return DDERR_GENERIC;
-	}
-
 	BYTE* pSrcVertex = (BYTE*)lpSrcBuffer + (dwSrcIndex * SrcStride);
-	BYTE* pDestVertex = (BYTE*)pDestVertices + (dwDestIndex * DestStride);
+	BYTE* pDestVertex = (BYTE*)lpDestBuffer + (dwDestIndex * DestStride);
 
 	const bool SimpleCopy = (SrcFVF & ~D3DFVF_POSITION_MASK) == (DestFVF & ~D3DFVF_POSITION_MASK) && (SrcStride - PosSizeSrc) == (DestStride - PosSizeDest);
 
@@ -1229,6 +1262,8 @@ HRESULT m_IDirect3DVertexBufferX::ProcessVerticesUP(DWORD dwVertexOp, DWORD dwDe
 			memcpy(pDestVertex, pSrcVertex, dwCount * DestStride);
 		}
 	}
+
+	D3DRECT newExtents = { LONG_MAX, LONG_MAX, LONG_MIN, LONG_MIN };
 
 	for (UINT i = 0; i < dwCount; ++i)
 	{
@@ -1312,67 +1347,49 @@ HRESULT m_IDirect3DVertexBufferX::ProcessVerticesUP(DWORD dwVertexOp, DWORD dwDe
 			*reinterpret_cast<D3DCOLOR*>(pDestVertex + SpecularDestOffset) = Specular;
 		}
 
+		// Update extents
+		if (bUpdateExtents)
+		{
+			// floor/ceil convert to integer extents
+			newExtents.x1 = min(newExtents.x1, static_cast<LONG>(floorf(dst.x)));
+			newExtents.y1 = min(newExtents.y1, static_cast<LONG>(floorf(dst.y)));
+			newExtents.x2 = max(newExtents.x2, static_cast<LONG>(ceilf(dst.x)));
+			newExtents.y2 = max(newExtents.y2, static_cast<LONG>(ceilf(dst.y)));
+		}
+
 		// Move to the next vertex
 		pSrcVertex += SrcStride;
 		pDestVertex += DestStride;
 	}
 
-	// Unlock the destination vertex buffer
-	Unlock();
+	if (bUpdateExtents && newExtents.x1 != LONG_MAX)
+	{
+		if (!IsRectZero(drExtent))
+		{
+			// Merge with existing extents if valid
+			drExtent.x1 = min(drExtent.x1, newExtents.x1);
+			drExtent.y1 = min(drExtent.y1, newExtents.y1);
+			drExtent.x2 = max(drExtent.x2, newExtents.x2);
+			drExtent.y2 = max(drExtent.y2, newExtents.y2);
+		}
+		else
+		{
+			// First valid extents
+			drExtent.x1 = newExtents.x1;
+			drExtent.y1 = newExtents.y1;
+			drExtent.x2 = newExtents.x2;
+			drExtent.y2 = newExtents.y2;
+		}
+	}
 
 	return D3D_OK;
 }
 
-template HRESULT m_IDirect3DVertexBufferX::TransformVertexUP<XYZ>(m_IDirect3DDeviceX* , XYZ*, D3DTLVERTEX*, D3DHVERTEX*, const DWORD, D3DRECT&, bool, bool);
-template HRESULT m_IDirect3DVertexBufferX::TransformVertexUP<D3DVERTEX>(m_IDirect3DDeviceX*, D3DVERTEX*, D3DTLVERTEX*, D3DHVERTEX*, const DWORD, D3DRECT&, bool, bool);
-template HRESULT m_IDirect3DVertexBufferX::TransformVertexUP<D3DLVERTEX>(m_IDirect3DDeviceX* , D3DLVERTEX*, D3DTLVERTEX*, D3DHVERTEX*, const DWORD, D3DRECT&, bool, bool);
+template HRESULT m_IDirect3DVertexBufferX::TransformVertexUP<XYZ>(m_IDirect3DDeviceX* , XYZ*, D3DTLVERTEX*, D3DHVERTEX*, const DWORD, D3DRECT&);
+template HRESULT m_IDirect3DVertexBufferX::TransformVertexUP<D3DLVERTEX>(m_IDirect3DDeviceX* , D3DLVERTEX*, D3DTLVERTEX*, D3DHVERTEX*, const DWORD, D3DRECT&);
 template <typename T>
-HRESULT m_IDirect3DVertexBufferX::TransformVertexUP(m_IDirect3DDeviceX* pDirect3DDeviceX, T* srcVertex, D3DTLVERTEX* destVertex, D3DHVERTEX* pHOut, const DWORD dwCount, D3DRECT& drExtent, bool bLighting, bool bUpdateExtents)
+HRESULT m_IDirect3DVertexBufferX::TransformVertexUP(m_IDirect3DDeviceX* pDirect3DDeviceX, T* srcVertex, D3DTLVERTEX* destVertex, D3DHVERTEX* pHOut, const DWORD dwCount, D3DRECT& drExtent)
 {
-	// Check for lighiting, must have source normals and dest diffuse or specular
-	if (bLighting)
-	{
-		if constexpr (std::is_same_v<T, XYZ>)
-		{
-			bLighting = false;
-			LOG_LIMIT(100, __FUNCTION__ << " Warning: 'D3DVOP_LIGHT' is specified but verticies don't support it: XYZ");
-		}
-		else if constexpr (std::is_same_v<T, D3DVERTEX>)
-		{
-			// Do nothing
-		}
-		else if constexpr (std::is_same_v<T, D3DLVERTEX>)
-		{
-			bLighting = false;
-			LOG_LIMIT(100, __FUNCTION__ << " Warning: 'D3DVOP_LIGHT' is specified but verticies don't support it: D3DLVERTEX");
-		}
-		else
-		{
-			static_assert(false);
-		}
-	}
-
-	// Check lighting state
-	if (bLighting)
-	{
-		DWORD rsLighting = FALSE;
-		if (FAILED(pDirect3DDeviceX->GetRenderState(D3DRENDERSTATE_LIGHTING, &rsLighting)) || rsLighting == FALSE)
-		{
-			bLighting = false;
-		}
-	}
-
-	// Get lights
-	std::vector<DXLIGHT7> cachedLights;
-	if (bLighting)
-	{
-		pDirect3DDeviceX->GetEnabledLightList(cachedLights);
-		if (cachedLights.empty())
-		{
-			bLighting = false;
-		}
-	}
-
 	D3DMATRIX matWorld, matView, matProj;
 	if (FAILED(pDirect3DDeviceX->GetTransform(D3DTRANSFORMSTATE_WORLD, &matWorld)) ||
 		FAILED(pDirect3DDeviceX->GetTransform(D3DTRANSFORMSTATE_VIEW, &matView)) ||
@@ -1392,53 +1409,6 @@ HRESULT m_IDirect3DVertexBufferX::TransformVertexUP(m_IDirect3DDeviceX* pDirect3
 	{
 		LOG_LIMIT(100, __FUNCTION__ << " Error: Failed to get viewport");
 		return DDERR_GENERIC;
-	}
-
-	// Cache specular, ambient, material and lights if needed
-	LightingState lsState = {};
-	D3DMATRIX matNormal = {};
-
-	// Get lighting data
-	if (bLighting)
-	{
-		lsState.DiffuseMaterialSource = D3DMCS_COLOR1;
-		lsState.SpecularMaterialSource = D3DMCS_COLOR2;
-		lsState.AmbientMaterialSource = D3DMCS_MATERIAL;
-		lsState.EmissiveMaterialSource = D3DMCS_MATERIAL;
-
-		lsState.ColorVertex = false;
-
-		lsState.ViewMatrix = matView;
-
-		if (DWORD rsSpecular = 0;
-			SUCCEEDED(pDirect3DDeviceX->GetRenderState(D3DRENDERSTATE_SPECULARENABLE, &rsSpecular)))
-		{
-			lsState.UseSpecular = rsSpecular != FALSE;
-		}
-
-		if (DWORD rsLocalViewer = 0;
-			SUCCEEDED(pDirect3DDeviceX->GetRenderState(D3DRENDERSTATE_LOCALVIEWER, &rsLocalViewer)))
-		{
-			lsState.LocalViewer = rsLocalViewer != FALSE;
-		}
-
-		if (DWORD rsNormalizeNormals = 0;
-			SUCCEEDED(pDirect3DDeviceX->GetRenderState(D3DRENDERSTATE_NORMALIZENORMALS, &rsNormalizeNormals)))
-		{
-			lsState.NormalizeNormals = rsNormalizeNormals != FALSE;
-		}
-
-		pDirect3DDeviceX->GetRenderState(D3DRENDERSTATE_AMBIENT, &lsState.AmbientRenderState);
-
-		pDirect3DDeviceX->GetRenderState(D3DRENDERSTATE_DIFFUSEMATERIALSOURCE, &lsState.DiffuseMaterialSource);
-		pDirect3DDeviceX->GetRenderState(D3DRENDERSTATE_SPECULARMATERIALSOURCE, &lsState.SpecularMaterialSource);
-		pDirect3DDeviceX->GetRenderState(D3DRENDERSTATE_AMBIENTMATERIALSOURCE, &lsState.AmbientMaterialSource);
-		pDirect3DDeviceX->GetRenderState(D3DRENDERSTATE_EMISSIVEMATERIALSOURCE, &lsState.EmissiveMaterialSource);
-
-		pDirect3DDeviceX->GetMaterial(&lsState.Material);
-
-		D3DXMatrixInverse(&matNormal, nullptr, &matWorld);
-		D3DXMatrixTranspose(&matNormal, &matNormal);
 	}
 
 	D3DRECT newExtents = { LONG_MAX, LONG_MAX, LONG_MIN, LONG_MIN };
@@ -1477,32 +1447,6 @@ HRESULT m_IDirect3DVertexBufferX::TransformVertexUP(m_IDirect3DDeviceX* pDirect3
 			dst.tu = 0.0f;
 			dst.tv = 0.0f;
 		}
-		else if constexpr (std::is_same_v<T, D3DVERTEX>)
-		{
-			D3DCOLOR Diffuse = 0xFFFFFFFF, Specular = 0;	// Default diffuse to white
-
-			if (bLighting)
-			{
-				// Transform normal
-				D3DXVECTOR3 normal = { src.nx, src.ny, src.nz };
-				D3DXVECTOR3 transformedNormal;
-				D3DXVec3TransformNormal(&transformedNormal, &normal, &matNormal);
-
-				D3DXVECTOR3 transformedPos =
-				{
-					viewPos4.x / viewPos4.w,
-					viewPos4.y / viewPos4.w,
-					viewPos4.z / viewPos4.w
-				};
-
-				ComputeLighting(transformedPos, transformedNormal, cachedLights, &lsState, Diffuse, Specular);
-			}
-
-			dst.color = Diffuse;
-			dst.specular = Specular;
-			dst.tu = src.tu;
-			dst.tv = src.tv;
-		}
 		else if constexpr (std::is_same_v<T, D3DLVERTEX>)
 		{
 			dst.color = src.color;
@@ -1526,18 +1470,14 @@ HRESULT m_IDirect3DVertexBufferX::TransformVertexUP(m_IDirect3DDeviceX* pDirect3
 			hdst.dwFlags = 0; // Clip flags not computed here (TransformVertices only sets them if clipping performed upstream)
 		}
 
-		// Update extents
-		if (bUpdateExtents)
-		{
-			// floor/ceil convert to integer extents
-			newExtents.x1 = min(newExtents.x1, static_cast<LONG>(floorf(dst.sx)));
-			newExtents.y1 = min(newExtents.y1, static_cast<LONG>(floorf(dst.sy)));
-			newExtents.x2 = max(newExtents.x2, static_cast<LONG>(ceilf(dst.sx)));
-			newExtents.y2 = max(newExtents.y2, static_cast<LONG>(ceilf(dst.sy)));
-		}
+		// floor/ceil convert to integer extents
+		newExtents.x1 = min(newExtents.x1, static_cast<LONG>(floorf(dst.sx)));
+		newExtents.y1 = min(newExtents.y1, static_cast<LONG>(floorf(dst.sy)));
+		newExtents.x2 = max(newExtents.x2, static_cast<LONG>(ceilf(dst.sx)));
+		newExtents.y2 = max(newExtents.y2, static_cast<LONG>(ceilf(dst.sy)));
 	}
 
-	if (bUpdateExtents && newExtents.x1 != LONG_MAX)
+	if (newExtents.x1 != LONG_MAX)
 	{
 		if (!IsRectZero(drExtent))
 		{

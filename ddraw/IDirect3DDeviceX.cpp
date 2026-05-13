@@ -698,8 +698,6 @@ HRESULT m_IDirect3DDeviceX::Execute(LPDIRECT3DEXECUTEBUFFER lpDirect3DExecuteBuf
 				auto startTime = std::chrono::high_resolution_clock::now();
 #endif
 
-				bool IsHVertexUsed = false;
-
 				HRESULT hr = D3D_OK;
 
 				BYTE* inputVerts = reinterpret_cast<BYTE*>(lpData) + ExecuteData.dwVertexOffset;
@@ -736,8 +734,6 @@ HRESULT m_IDirect3DDeviceX::Execute(LPDIRECT3DEXECUTEBUFFER lpDirect3DExecuteBuf
 					{
 					case D3DPROCESSVERTICES_COPY:
 					{
-						IsHVertexUsed = true;
-
 						// Assume copy vertices always uses D3DFVF_TLVERTEX
 						D3DTLVERTEX* srcVertices = reinterpret_cast<D3DTLVERTEX*>(inputVerts) + processVertices[i].wStart;
 						D3DTLVERTEX* destVertices = reinterpret_cast<D3DTLVERTEX*>(outputVerts) + processVertices[i].wDest;
@@ -768,17 +764,23 @@ HRESULT m_IDirect3DDeviceX::Execute(LPDIRECT3DEXECUTEBUFFER lpDirect3DExecuteBuf
 					case D3DPROCESSVERTICES_TRANSFORM:
 					case D3DPROCESSVERTICES_TRANSFORMLIGHT:
 					{
-						IsHVertexUsed = true;
+						const bool IsLight = (op == D3DPROCESSVERTICES_TRANSFORMLIGHT);
 
-						const bool IsLight = (op == D3DPROCESSVERTICES_TRANSFORMLIGHT) && !(Flags & D3DPROCESSVERTICES_NOCOLOR);
+						// Flags
+						DWORD psFlags = (Flags & D3DPROCESSVERTICES_NOCOLOR) ? D3DPV_DONOTCOPYDATA : 0;
+						DWORD VertexOp = (IsLight ? D3DVOP_LIGHT : 0) | (UpdateExtents ? D3DVOP_EXTENTS : 0);
 
-						D3DRECT drExtent = { LONG_MAX, LONG_MAX, LONG_MIN, LONG_MIN };
+						// FVF
+						DWORD SrcVertexTypeDesc = IsLight ? D3DFVF_VERTEX : D3DFVF_LVERTEX;
+						DWORD DestVertexTypeDesc = D3DFVF_TLVERTEX;
 
 						// Assume process vertices always uses D3DFVF_VERTEX
 						D3DVERTEX* srcVertices = reinterpret_cast<D3DVERTEX*>(inputVerts) + processVertices[i].wStart;
 						D3DTLVERTEX* destVertices = reinterpret_cast<D3DTLVERTEX*>(outputVerts) + processVertices[i].wDest;
 
-						hr = m_IDirect3DVertexBufferX::TransformVertexUP(this, srcVertices, destVertices, nullptr, Count, drExtent, IsLight, UpdateExtents);
+						D3DRECT drExtent = { LONG_MAX, LONG_MAX, LONG_MIN, LONG_MIN };
+
+						hr = m_IDirect3DVertexBufferX::ProcessVerticesUP(VertexOp, destVertices, DestVertexTypeDesc, 0, Count, srcVertices, SrcVertexTypeDesc, 0, drExtent, (LPDIRECT3DDEVICE7)GetWrapperInterfaceX(1), psFlags);
 
 						if (SUCCEEDED(hr))
 						{

@@ -305,12 +305,12 @@ HRESULT m_IDirect3DViewportX::TransformVertices(DWORD dwVertexCount, LPD3DTRANSF
 		if (lpData->dwInSize == sizeof(XYZ))
 		{
 			XYZ* pIn = reinterpret_cast<XYZ*>(lpData->lpIn);
-			hr = m_IDirect3DVertexBufferX::TransformVertexUP(pDirect3DDeviceX, pIn, pOut, pHOut, dwVertexCount, lpData->drExtent, false, true);
+			hr = m_IDirect3DVertexBufferX::TransformVertexUP(pDirect3DDeviceX, pIn, pOut, pHOut, dwVertexCount, lpData->drExtent);
 		}
 		else if (lpData->dwInSize == sizeof(D3DLVERTEX))
 		{
 			D3DLVERTEX* pIn = reinterpret_cast<D3DLVERTEX*>(lpData->lpIn);
-			hr = m_IDirect3DVertexBufferX::TransformVertexUP(pDirect3DDeviceX, pIn, pOut, pHOut, dwVertexCount, lpData->drExtent, false, true);
+			hr = m_IDirect3DVertexBufferX::TransformVertexUP(pDirect3DDeviceX, pIn, pOut, pHOut, dwVertexCount, lpData->drExtent);
 		}
 		else
 		{

@@ -334,151 +334,16 @@ HRESULT m_IDirect3DViewportX::TransformVertices(DWORD dwVertexCount, LPD3DTRANSF
 	return ProxyInterface->TransformVertices(dwVertexCount, lpData, dwFlags, lpOffscreen);
 }
 
-HRESULT m_IDirect3DViewportX::LightElements(DWORD dwElementCount, LPD3DLIGHTDATA lpData, DWORD DirectXVersion)
+HRESULT m_IDirect3DViewportX::LightElements(DWORD dwElementCount, LPD3DLIGHTDATA lpData)
 {
 	Logging::LogDebug() << __FUNCTION__ << " (" << this << ")";
 
 	if (Config.Dd7to9)
 	{
-		if (DirectXVersion != 1)
-		{
-			// This method is only implemented in DirectX2, in Viewport v1
-			return DDERR_UNSUPPORTED;
-		}
+		// This method is not currently implemented in any interface.
 
-		if (dwElementCount == 0)
-		{
-			return D3D_OK;
-		}
-
-		if (!lpData || !lpData->lpIn || !lpData->lpOut)
-		{
-			return DDERR_INVALIDPARAMS;
-		}
-
-		// Validate sizes
-		if (lpData->dwSize != sizeof(D3DLIGHTDATA) ||
-			lpData->dwInSize != sizeof(D3DLIGHTINGELEMENT) ||
-			lpData->dwOutSize != sizeof(D3DTLVERTEX))
-		{
-			LOG_LIMIT(100, __FUNCTION__ << " Error: dwSize doesn't match: " <<
-				sizeof(D3DLIGHTDATA) << " -> " << lpData->dwSize <<
-				" dwInSize: " << sizeof(D3DLIGHTINGELEMENT) << " -> " << lpData->dwInSize <<
-				" dwOutSize: " << sizeof(D3DTLVERTEX) << " -> " << lpData->dwOutSize);
-			return DDERR_INVALIDPARAMS;
-		}
-
-		if (AttachedD3DDevices.empty())
-		{
-			LOG_LIMIT(100, __FUNCTION__ << " Error: no D3Ddevice attached!");
-			return D3DERR_VIEWPORTHASNODEVICE;
-		}
-
-		m_IDirect3DDeviceX* pDirect3DDeviceX = AttachedD3DDevices.front();
-		if (!pDirect3DDeviceX)
-		{
-			LOG_LIMIT(100, __FUNCTION__ << " Error: could not get Direct3DDeviceX interface!");
-			return DDERR_GENERIC;
-		}
-
-		if (AttachedD3DDevices.size() > 1)
-		{
-			LOG_LIMIT(100, __FUNCTION__ << " Warning: More than one attached Direct3DDeviceX interface!");
-		}
-
-		LOG_LIMIT(100, __FUNCTION__ << " Warning: emulating LightElements()!");
-
-#ifdef ENABLE_PROFILING
-		auto startTime = std::chrono::high_resolution_clock::now();
-#endif
-
-		// Get lighting info
-		bool UseSpecular = false;
-		if (DWORD rsSpecular = 0; SUCCEEDED(pDirect3DDeviceX->GetRenderState(D3DRENDERSTATE_SPECULARENABLE, &rsSpecular)))
-		{
-			UseSpecular = rsSpecular != FALSE;
-		}
-
-		// Get ambient light
-		D3DCOLOR ambient = 0;
-		pDirect3DDeviceX->GetRenderState(D3DRENDERSTATE_AMBIENT, &ambient);
-
-		// Get materal for specular
-		LPD3DMATERIAL7 lpMaterial = nullptr;
-		D3DMATERIAL7 Material = {};
-		if (SUCCEEDED(pDirect3DDeviceX->GetMaterial(&Material)))
-		{
-			lpMaterial = &Material;
-		}
-
-		// Cache light data once
-		std::vector<DXLIGHT7> cachedLights;
-		GetEnabledLightList(cachedLights, pDirect3DDeviceX);
-
-		// Get world & view transforms for pre-transform
-		D3DMATRIX matWorld, matView;
-		if (FAILED(pDirect3DDeviceX->GetTransform(D3DTRANSFORMSTATE_WORLD, &matWorld)) ||
-			FAILED(pDirect3DDeviceX->GetTransform(D3DTRANSFORMSTATE_VIEW, &matView)))
-		{
-			LOG_LIMIT(100, __FUNCTION__ << " Error: Failed to get transform matrices");
-			return DDERR_GENERIC;
-		}
-
-		// Combine world + view for pre-transform
-		D3DMATRIX matWorldView = {};
-		D3DXMatrixMultiply(&matWorldView, &matWorld, &matView);
-
-		// Create rotation-only matrix
-		D3DMATRIX matWorldRotOnly = DefaultIdentityMatrix;
-		matWorldRotOnly._11 = matWorld._11; matWorldRotOnly._12 = matWorld._12; matWorldRotOnly._13 = matWorld._13;
-		matWorldRotOnly._21 = matWorld._21; matWorldRotOnly._22 = matWorld._22; matWorldRotOnly._23 = matWorld._23;
-		matWorldRotOnly._31 = matWorld._31; matWorldRotOnly._32 = matWorld._32; matWorldRotOnly._33 = matWorld._33;
-
-		D3DLIGHTINGELEMENT* in = lpData->lpIn;
-		D3DTLVERTEX* out = lpData->lpOut;
-
-		// Process each vertex (like ProcessVerticesUP but only world-view + lighting)
-		for (DWORD i = 0; i < dwElementCount; ++i)
-		{
-			D3DLIGHTINGELEMENT& v = in[i];
-
-			// Transform normal using world rotation only
-			D3DXVECTOR3 normal(v.dvNormal.x, v.dvNormal.y, v.dvNormal.z);
-			D3DXVECTOR3 transformedNormal;
-
-			// Transform and normalize
-			D3DXVec3TransformNormal(&transformedNormal, &normal, &matWorldRotOnly);
-			if (D3DXVec3LengthSq(&normal) > 1e-12f)
-			{
-				D3DXVec3Normalize(&transformedNormal, &transformedNormal);
-			}
-
-			// Transform position using world-view (pre-transform)
-			D3DXVECTOR3 pos(v.dvPosition.x, v.dvPosition.y, v.dvPosition.z);
-			D3DXVECTOR3 transformedPos;
-			D3DXVec3TransformCoord(&transformedPos, &pos, &matWorldView);
-
-			// Compute lighting
-			D3DCOLOR diffuse = 0, specular = 0;
-			m_IDirect3DVertexBufferX::ComputeLighting(transformedPos, transformedNormal, cachedLights, lpMaterial, ambient, UseSpecular, diffuse, specular);
-
-			// Output TL vertex
-			D3DTLVERTEX& outV = out[i];
-			outV.sx = transformedPos.x;
-			outV.sy = transformedPos.y;
-			outV.sz = transformedPos.z;
-			outV.rhw = 1.0f;  // pre-transformed
-			outV.color = diffuse;
-			outV.specular = specular;
-			outV.tu = 0.0f;
-			outV.tv = 0.0f;
-		}
-
-#ifdef ENABLE_PROFILING
-		Logging::Log() << __FUNCTION__ << " (" << this << ") hr = " << (D3DERR)D3D_OK << " Timing = " << Logging::GetTimeLapseInMS(startTime);
-#endif
-
-		return D3D_OK;
+		LOG_LIMIT(100, __FUNCTION__ << " Error: Not Implemented");
+		return DDERR_UNSUPPORTED;
 	}
 
 	return ProxyInterface->LightElements(dwElementCount, lpData);

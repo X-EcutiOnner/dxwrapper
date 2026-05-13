@@ -459,6 +459,8 @@ typedef HRESULT(WINAPI* PFN_D3DXCompileShaderFromFileW)(LPCWSTR pSrcFile, const 
 typedef HRESULT(WINAPI* PFN_D3DXFillTexture)(LPVOID pTexture, LPD3DXFILL3D pFunction, LPVOID pData);
 typedef HRESULT(WINAPI* PFN_D3DXDeclaratorFromFVF)(DWORD FVF, D3DVERTEXELEMENT9 pDeclarator[MAX_FVF_DECL_SIZE]);
 typedef D3DXMATRIX* (WINAPI* PFN_D3DXMatrixMultiply)(_Inout_ D3DXMATRIX* pOut, _In_ const D3DXMATRIX* pM1, _In_ const D3DXMATRIX* pM2);
+typedef D3DXMATRIX* (WINAPI* PFN_D3DXMatrixInverse)(_Inout_ D3DXMATRIX* pOut, _Inout_ FLOAT* pDeterminant, _In_ const D3DXMATRIX* pM);
+typedef D3DXMATRIX* (WINAPI* PFN_D3DXMatrixTranspose)(_Inout_ D3DXMATRIX* pOut, _In_ const D3DXMATRIX* pM);
 typedef D3DXVECTOR3* (WINAPI* PFN_D3DXVec3Normalize)(_Inout_ D3DXVECTOR3* pOut, _In_ const D3DXVECTOR3* pV);
 typedef D3DXVECTOR3* (WINAPI* PFN_D3DXVec3TransformCoord)(_Inout_ D3DXVECTOR3* pOut, _In_ const D3DXVECTOR3* pV, _In_ const D3DXMATRIX* pM);
 typedef D3DXVECTOR3* (WINAPI* PFN_D3DXVec3TransformNormal)(_Inout_ D3DXVECTOR3* pOut, _In_ const D3DXVECTOR3* pV, _In_ const D3DXMATRIX* pM);
@@ -481,6 +483,8 @@ typedef HRESULT(WINAPI* PFN_D3DDisassemble)(LPCVOID pSrcData, SIZE_T SrcDataSize
 	visit(D3DXFillTexture) \
 	visit(D3DXDeclaratorFromFVF) \
 	visit(D3DXMatrixMultiply) \
+	visit(D3DXMatrixInverse) \
+	visit(D3DXMatrixTranspose) \
 	visit(D3DXVec3Normalize) \
 	visit(D3DXVec3TransformCoord) \
 	visit(D3DXVec3TransformNormal) \

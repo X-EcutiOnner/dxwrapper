@@ -379,7 +379,8 @@ LRESULT CALLBACK WndProc::Handler(HWND hWnd, UINT Msg, WPARAM wParam, LPARAM lPa
 	DATASTRUCT* pDataStruct = AppWndProcInstance->GetDataStruct();
 
 	// Messages don't apply to this window
-	if (hWnd != hWndInstance)
+	if (hWnd != hWndInstance || !AppWndProcInstance->IsActive())
+
 	{
 		return CallWndProc(pWndProc, hWnd, Msg, wParam, lParam);
 	}

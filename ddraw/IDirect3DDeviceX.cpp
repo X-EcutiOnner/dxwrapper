@@ -2115,11 +2115,11 @@ HRESULT m_IDirect3DDeviceX::GetRenderState(D3DRENDERSTATETYPE dwRenderStateType,
 		}
 		case D3DRENDERSTATE_WRAPU:				// 5
 			GetD9RenderState(D3DRS_WRAP0, lpdwRenderState);
-			*lpdwRenderState &= D3DWRAP_U;
+			*lpdwRenderState = (*lpdwRenderState & D3DWRAP_U) ? TRUE : FALSE;
 			return D3D_OK;
 		case D3DRENDERSTATE_WRAPV:				// 6
 			GetD9RenderState(D3DRS_WRAP0, lpdwRenderState);
-			*lpdwRenderState = ((*lpdwRenderState & D3DWRAP_V) != 0);
+			*lpdwRenderState = (*lpdwRenderState & D3DWRAP_V) ? TRUE : FALSE;
 			return D3D_OK;
 		case D3DRENDERSTATE_OLDALPHABLENDENABLE:// 42
 			if (DeviceStates.RenderState[D3DRENDERSTATE_OLDALPHABLENDENABLE].State == (DWORD)-1)
@@ -3117,14 +3117,19 @@ HRESULT m_IDirect3DDeviceX::SetClipStatus(LPD3DCLIPSTATUS lpD3DClipStatus)
 
 	if (Config.Dd7to9)
 	{
-		if (!lpD3DClipStatus || !(lpD3DClipStatus->dwFlags & (D3DCLIPSTATUS_STATUS | D3DCLIPSTATUS_EXTENTS2 | D3DCLIPSTATUS_EXTENTS3)))
+		if (!lpD3DClipStatus)
 		{
 			return DDERR_INVALIDPARAMS;
 		}
 
 		LOG_LIMIT(100, __FUNCTION__ << " Warning: clip status is not fully supported.");
 
-		D3DClipStatus.dwFlags = lpD3DClipStatus->dwFlags & (D3DCLIPSTATUS_STATUS | D3DCLIPSTATUS_EXTENTS2 | D3DCLIPSTATUS_EXTENTS3);
+		DWORD ValidFlags =
+			D3DCLIPSTATUS_STATUS |
+			D3DCLIPSTATUS_EXTENTS2 |
+			D3DCLIPSTATUS_EXTENTS3;
+
+		D3DClipStatus.dwFlags = lpD3DClipStatus->dwFlags & ValidFlags;
 
 		// Status
 		if (lpD3DClipStatus->dwFlags & D3DCLIPSTATUS_STATUS)
@@ -3179,6 +3184,25 @@ HRESULT m_IDirect3DDeviceX::GetClipStatus(LPD3DCLIPSTATUS lpD3DClipStatus)
 		LOG_LIMIT(100, __FUNCTION__ << " Warning: clip status is not fully supported.");
 
 		*lpD3DClipStatus = D3DClipStatus;
+
+		D3DVIEWPORT9 vp = {};
+
+		if (SUCCEEDED(GetD9Viewport(&vp)))
+		{
+			lpD3DClipStatus->dwFlags |= D3DCLIPSTATUS_EXTENTS2;
+
+			lpD3DClipStatus->minx = static_cast<D3DVALUE>(vp.X);
+			lpD3DClipStatus->maxx = static_cast<D3DVALUE>(vp.X + vp.Width);
+
+			lpD3DClipStatus->miny = static_cast<D3DVALUE>(vp.Y);
+			lpD3DClipStatus->maxy = static_cast<D3DVALUE>(vp.Y + vp.Height);
+
+			if (lpD3DClipStatus->dwFlags & D3DCLIPSTATUS_EXTENTS3)
+			{
+				lpD3DClipStatus->minz = vp.MinZ;
+				lpD3DClipStatus->maxz = vp.MaxZ;
+			}
+		}
 
 		return D3D_OK;
 	}

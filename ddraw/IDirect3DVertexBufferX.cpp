@@ -444,6 +444,24 @@ HRESULT m_IDirect3DVertexBufferX::Optimize(LPDIRECT3DDEVICE7 lpD3DDevice, DWORD 
 	if (Config.Dd7to9)
 	{
 		// The Optimize function doesn't exist in Direct3D9 because it manages vertex buffer optimizations internally
+
+		if (!lpD3DDevice)
+		{
+			return DDERR_INVALIDPARAMS;
+		}
+
+		if (LastLock.IsLocked)
+		{
+			return D3DERR_VERTEXBUFFERLOCKED;
+		}
+
+		if (VB.Desc.dwCaps & D3DVBCAPS_OPTIMIZED)
+		{
+			return D3DERR_VERTEXBUFFEROPTIMIZED;
+		}
+
+		VB.Desc.dwCaps |= D3DVBCAPS_OPTIMIZED;
+
 		return D3D_OK;
 	}
 

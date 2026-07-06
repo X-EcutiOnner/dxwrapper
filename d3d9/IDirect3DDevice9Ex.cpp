@@ -104,10 +104,11 @@ ULONG m_IDirect3DDevice9Ex::Release()
 {
 	Logging::LogDebug() << __FUNCTION__ << " (" << this << ")";
 
-	bool ShouldDeleteMe = false;
 	ULONG ref = 0;
 
-	// Handle release
+	bool ShouldDeleteMe = false;
+
+	// Handle device release
 	{
 		ScopedCriticalSection ThreadLock(&d9cs, Config.AntiAliasing || RequirePresentHandling());
 
@@ -122,35 +123,48 @@ ULONG m_IDirect3DDevice9Ex::Release()
 		UsedRef += (UsingDOverlay ? 1 : 0);
 #endif
 
-		if ((EmuRef == 0 && ref != UsedRef) ||
-			(EmuRef != 0 && ref == UsedRef))
+		// Check for refcount mismatch
+		if (UsedRef &&
+			((EmuRef == 0 && ref != UsedRef) ||
+			(EmuRef != 0 && ref == UsedRef)))
 		{
 			Logging::Log() << __FUNCTION__ << " Warning: Refcounts don't match! Emulated ref: " << EmuRef << " Device ref: " << ref << " Used ref: " << UsedRef;
 		}
 
 		// Teardown wrapper resources before destroying device
-		if (UsedRef > 0 && ref == UsedRef)
+		if (ref > 0)
 		{
-			ProxyInterface->AddRef();
+			if (ref == UsedRef)
+			{
+				ProxyInterface->AddRef();
 
-			ReleaseResources(false);
+				ReleaseResources(false);
 
 #ifdef ENABLE_DEBUGOVERLAY
-			if (UsingDOverlay)
-			{
-				DOverlay.Shutdown();
-			}
+				if (UsingDOverlay)
+				{
+					DOverlay.Shutdown();
+				}
 #endif
 
-			UsedRef = 0;
+				UsedRef = 0;
 
-			ref = ProxyInterface->Release();
-		}
-		else if (ref > 0 && ref < UsedRef)
-		{
-			Logging::Log() << __FUNCTION__ << " Error: device ref '" << ref << "' is less than used ref '" << UsedRef << "'.";
+				ref = ProxyInterface->Release();
+
+				if (ref > 0)
+				{
+					Logging::Log() << __FUNCTION__ << " Error: releasing resources too early! Device ref '" << ref << "'.";
+				}
+			}
+			else if (ref < UsedRef)
+			{
+				Logging::Log() << __FUNCTION__ << " Error: device ref '" << ref << "' is less than used ref '" << UsedRef << "'.";
+			}
+
+			ref = ref > UsedRef ? ref - UsedRef : ref;
 		}
 
+		// Device is released
 		if (ref == 0)
 		{
 			// Reset display
@@ -180,10 +194,6 @@ ULONG m_IDirect3DDevice9Ex::Release()
 			}
 
 			ShouldDeleteMe = true;
-		}
-		else
-		{
-			ref = ref > UsedRef ? ref - UsedRef : ref;
 		}
 	}
 

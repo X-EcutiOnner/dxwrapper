@@ -90,7 +90,7 @@ public:
 	// Static functions
 	static DWORD AdjustPOW2Caps(DWORD OriginalCaps);
 	static DWORD UpdateBehaviorFlags(DWORD BehaviorFlags);
-	static void UpdatePresentParameter(D3DPRESENT_PARAMETERS* pPresentationParameters, HWND hFocusWindow, DEVICEDETAILS& DeviceDetails, bool IsEx, bool ForceExclusiveFullscreen, bool SetWindow);
+	static void UpdatePresentParameter(D3DPRESENT_PARAMETERS* pPresentationParameters, HWND hFocusWindow, DEVICEDETAILS& DeviceDetails, bool CreatingDevice, bool IsEx, bool ForceExclusiveFullscreen, bool SetWindow);
 	static void GetFinalPresentParameter(D3DPRESENT_PARAMETERS* pPresentationParameters, DEVICEDETAILS& DeviceDetails);
 	static void UpdatePresentParameterForMultisample(D3DPRESENT_PARAMETERS* pPresentationParameters, D3DMULTISAMPLE_TYPE MultiSampleType, DWORD MultiSampleQuality);
 	static void GetFullscreenDisplayMode(D3DPRESENT_PARAMETERS& d3dpp, D3DDISPLAYMODEEX& Mode);

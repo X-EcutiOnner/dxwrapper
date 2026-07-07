@@ -327,7 +327,7 @@ HRESULT m_IDirect3DDevice9Ex::CreateAdditionalSwapChain(D3DPRESENT_PARAMETERS *p
 
 		ForceFullscreen = m_pD3DEx->TestResolution(DeviceDetails.Adapter, pPresentationParameters->BackBufferWidth, pPresentationParameters->BackBufferHeight);
 
-		m_IDirect3D9Ex::UpdatePresentParameter(p_d3dpp, DeviceDetails.DeviceWindow, DeviceDetails, false, ForceFullscreen, false);
+		m_IDirect3D9Ex::UpdatePresentParameter(p_d3dpp, DeviceDetails.DeviceWindow, DeviceDetails, false, false, ForceFullscreen, false);
 	}
 
 	HRESULT hr = D3DERR_INVALIDCALL;
@@ -348,7 +348,7 @@ HRESULT m_IDirect3DDevice9Ex::CreateAdditionalSwapChain(D3DPRESENT_PARAMETERS *p
 		{
 			CopyMemory(p_d3dpp, pPresentationParameters, sizeof(D3DPRESENT_PARAMETERS));
 
-			m_IDirect3D9Ex::UpdatePresentParameter(p_d3dpp, DeviceDetails.DeviceWindow, DeviceDetails, false, ForceFullscreen, false);
+			m_IDirect3D9Ex::UpdatePresentParameter(p_d3dpp, DeviceDetails.DeviceWindow, DeviceDetails, false, false, ForceFullscreen, false);
 		}
 
 		// Create CwapChain
@@ -3592,7 +3592,7 @@ HRESULT m_IDirect3DDevice9Ex::ResetT(T, D3DPRESENT_PARAMETERS* pPresentationPara
 
 		const bool SetWindow = (IsWindowModeChanging || IsResolutionChanging);
 
-		m_IDirect3D9Ex::UpdatePresentParameter(p_d3dpp, DeviceDetails.DeviceWindow, DeviceDetails, IsEx, ForceFullscreen, SetWindow);
+		m_IDirect3D9Ex::UpdatePresentParameter(p_d3dpp, DeviceDetails.DeviceWindow, DeviceDetails, false, IsEx, ForceFullscreen, SetWindow);
 
 		// Test for Multisample
 		if (DeviceDetails.DeviceMultiSampleFlag)
@@ -3609,7 +3609,7 @@ HRESULT m_IDirect3DDevice9Ex::ResetT(T, D3DPRESENT_PARAMETERS* pPresentationPara
 				// Reset presentation parameters
 				CopyMemory(p_d3dpp, pPresentationParameters, sizeof(D3DPRESENT_PARAMETERS));
 
-				m_IDirect3D9Ex::UpdatePresentParameter(p_d3dpp, DeviceDetails.DeviceWindow, DeviceDetails, IsEx, ForceFullscreen, false);
+				m_IDirect3D9Ex::UpdatePresentParameter(p_d3dpp, DeviceDetails.DeviceWindow, DeviceDetails, false, IsEx, ForceFullscreen, false);
 
 				ClearMultiSampled = true;
 			}

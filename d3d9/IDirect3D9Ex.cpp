@@ -565,7 +565,7 @@ HRESULT m_IDirect3D9Ex::CreateDeviceT(DEVICEDETAILS& DeviceDetails, UINT Adapter
 
 		CopyMemory(p_d3dpp, pPresentationParameters, sizeof(D3DPRESENT_PARAMETERS));
 
-		UpdatePresentParameter(p_d3dpp, hFocusWindow, DeviceDetails, IsEx, ForceFullscreen, true);
+		UpdatePresentParameter(p_d3dpp, hFocusWindow, DeviceDetails, true, IsEx, ForceFullscreen, true);
 
 		// Check for AntiAliasing (doesn't work with FlipEx)
 		if (Config.AntiAliasing)
@@ -612,7 +612,7 @@ HRESULT m_IDirect3D9Ex::CreateDeviceT(DEVICEDETAILS& DeviceDetails, UINT Adapter
 					// Reset presentation parameters
 					CopyMemory(p_d3dpp, pPresentationParameters, sizeof(D3DPRESENT_PARAMETERS));
 
-					UpdatePresentParameter(p_d3dpp, hFocusWindow, DeviceDetails, IsEx, ForceFullscreen, false);
+					UpdatePresentParameter(p_d3dpp, hFocusWindow, DeviceDetails, true, IsEx, ForceFullscreen, false);
 
 					LOG_LIMIT(100, __FUNCTION__ << " Failed to enable AntiAliasing!");
 				}
@@ -748,7 +748,7 @@ DWORD m_IDirect3D9Ex::UpdateBehaviorFlags(DWORD BehaviorFlags)
 }
 
 // Update Presentation Parameters
-void m_IDirect3D9Ex::UpdatePresentParameter(D3DPRESENT_PARAMETERS* pPresentationParameters, HWND hFocusWindow, DEVICEDETAILS& DeviceDetails, bool IsEx, bool ForceExclusiveFullscreen, bool SetWindow)
+void m_IDirect3D9Ex::UpdatePresentParameter(D3DPRESENT_PARAMETERS* pPresentationParameters, HWND hFocusWindow, DEVICEDETAILS& DeviceDetails, bool CreatingDevice, bool IsEx, bool ForceExclusiveFullscreen, bool SetWindow)
 {
 	if (!pPresentationParameters)
 	{
@@ -847,7 +847,7 @@ void m_IDirect3D9Ex::UpdatePresentParameter(D3DPRESENT_PARAMETERS* pPresentation
 			DeviceDetails.DeviceWindow;
 
 		// Adjust window styles before adjusting window
-		if (SetWindow)
+		if (CreatingDevice && SetWindow)
 		{
 			AdjustWindowStyle(DeviceDetails.DeviceWindow, DeviceDetails.IsDirectDrawDevice, pPresentationParameters->Windowed == FALSE);
 		}
@@ -972,8 +972,8 @@ void m_IDirect3D9Ex::AdjustWindowStyle(HWND hWnd, bool IsDirectDrawDevice, bool 
 		newExStyle &= ~WS_EX_TOOLWINDOW;
 	}
 
-	// Add app window style
-	if (!(newExStyle & WS_EX_APPWINDOW))
+	// Add app window style if it's not a root owner or if the window was a tool window
+	if (!(newExStyle & WS_EX_APPWINDOW) && (GetAncestor(hWnd, GA_ROOTOWNER) != hWnd || (lExStyle & WS_EX_TOOLWINDOW)))
 	{
 		LOG_LIMIT(3, __FUNCTION__ << " Warning: adding WS_EX_APPWINDOW");
 
@@ -1011,6 +1011,10 @@ void m_IDirect3D9Ex::AdjustWindowStyle(HWND hWnd, bool IsDirectDrawDevice, bool 
 	// Only call if something actually changed
 	if (frameStyleChanged || needsZOrderChange)
 	{
+		LOG_LIMIT(3, __FUNCTION__ << " Warning: setting window position." <<
+			" Frame changed: '" << frameStyleChanged << "' Making window top most: '" << (!isWindowTopMost) << "' Changing window zorder: '" << needsZOrderChange << "'"
+		);
+
 		SetWindowPos(
 			hWnd,
 			(isWindowTopMost ? HWND_NOTOPMOST : HWND_TOP),
@@ -1022,10 +1026,16 @@ void m_IDirect3D9Ex::AdjustWindowStyle(HWND hWnd, bool IsDirectDrawDevice, bool 
 		);
 	}
 
-	// Bring the window to top
-	if (hWnd != GetForegroundWindow() && hWnd != GetFocus() && hWnd != GetActiveWindow())
+	// Log style changes
+	if (newStyle != lStyle || newExStyle != lExStyle || frameStyleChanged || needsZOrderChange)
 	{
-		BringWindowToTop(hWnd);
+		newStyle = GetWindowLong(hWnd, GWL_STYLE);
+		newExStyle = GetWindowLong(hWnd, GWL_EXSTYLE);
+
+		LOG_LIMIT(3, __FUNCTION__ <<
+			" Window Style: " << Logging::hex(lStyle) << " -> " << Logging::hex(newStyle) <<
+			" ExStyle: " << Logging::hex(lExStyle) << " -> " << Logging::hex(newExStyle)
+		);
 	}
 }
 
@@ -1036,6 +1046,12 @@ void m_IDirect3D9Ex::AdjustWindowSize(HMONITOR hMonitor, HWND hWnd, LONG display
 	{
 		LOG_LIMIT(100, __FUNCTION__ << " Error: could not set window size, nullptr.");
 		return;
+	}
+
+	// Bring the window to top
+	if (hWnd != GetForegroundWindow() && hWnd != GetFocus() && hWnd != GetActiveWindow())
+	{
+		BringWindowToTop(hWnd);
 	}
 
 	// Verify monitor handle

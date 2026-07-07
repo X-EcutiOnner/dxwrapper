@@ -2426,7 +2426,23 @@ HRESULT m_IDirectDrawX::GetDeviceIdentifier2(LPDDDEVICEIDENTIFIER2 lpdddi2, DWOR
 			return hr;
 		}
 
-		ConvertDeviceIdentifier(*lpdddi2, Identifier9);
+		// This flag causes GetDeviceIdentifier to return information about the host (typically 2D) adapter in a system
+		if (dwFlags & DDGDI_GETHOSTIDENTIFIER)
+		{
+			ZeroMemory(lpdddi2, sizeof(DDDEVICEIDENTIFIER2));
+			strcpy_s(lpdddi2->szDriver, "vga.dll");
+			strcpy_s(lpdddi2->szDescription, "DirectDraw HAL");
+			lpdddi2->liDriverVersion.QuadPart = 0;
+			lpdddi2->dwVendorId = 0;
+			lpdddi2->dwDeviceId = 0;
+			lpdddi2->dwSubSysId = 0;
+			lpdddi2->dwRevision = 0;
+			lpdddi2->guidDeviceIdentifier = Identifier9.DeviceIdentifier;
+		}
+		else
+		{
+			ConvertDeviceIdentifier(*lpdddi2, Identifier9);
+		}
 
 		return DD_OK;
 	}

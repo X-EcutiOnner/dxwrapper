@@ -589,16 +589,24 @@ HRESULT m_IDirect3DDevice9Ex::CreateTexture(THIS_ UINT Width, UINT Height, UINT 
 	}
 
 	// Only safe for default/managed pool, non-render-target/non-depth-stencil textures
-	if (Config.ForceMipMapAutoGen && !(Usage & D3DUSAGE_RENDERTARGET) && !(Usage & D3DUSAGE_DEPTHSTENCIL) && (Pool == D3DPOOL_DEFAULT || Pool == D3DPOOL_MANAGED) && Levels <= 1)
+	if (((Config.ForceMipMapUsage && Levels == 1) || (Config.ForceMipMapAutoGen && Levels != 1)) &&
+		!(Usage & (D3DUSAGE_RENDERTARGET | D3DUSAGE_DEPTHSTENCIL)) && (Pool == D3DPOOL_DEFAULT || Pool == D3DPOOL_MANAGED))
 	{
-		Levels = 0;
+		if (Config.ForceMipMapUsage)
+		{
+			Levels = 0;
+		}
 		Usage |= D3DUSAGE_AUTOGENMIPMAP;
 	}
 
-	if (IsForcingD3d9to9Ex() && Pool == D3DPOOL_MANAGED)
+	if (IsForcingD3d9to9Ex() && Pool == D3DPOOL_MANAGED && !(Usage & (D3DUSAGE_DYNAMIC | D3DUSAGE_RENDERTARGET | D3DUSAGE_DEPTHSTENCIL)))
 	{
 		Pool = D3DPOOL_DEFAULT;
 		Usage |= D3DUSAGE_DYNAMIC;
+		if (Levels != 1)
+		{
+			Usage |= D3DUSAGE_AUTOGENMIPMAP;
+		}
 	}
 
 	HRESULT hr = ProxyInterface->CreateTexture(Width, Height, Levels, Usage, Format, Pool, ppTexture, pSharedHandle);
@@ -619,7 +627,7 @@ HRESULT m_IDirect3DDevice9Ex::CreateVolumeTexture(THIS_ UINT Width, UINT Height,
 {
 	Logging::LogDebug() << __FUNCTION__ << " (" << this << ")";
 
-	if (IsForcingD3d9to9Ex() && Pool == D3DPOOL_MANAGED)
+	if (IsForcingD3d9to9Ex() && Pool == D3DPOOL_MANAGED && !(Usage & (D3DUSAGE_DYNAMIC | D3DUSAGE_RENDERTARGET | D3DUSAGE_DEPTHSTENCIL)))
 	{
 		Pool = D3DPOOL_DEFAULT;
 		Usage |= D3DUSAGE_DYNAMIC;
@@ -643,7 +651,7 @@ HRESULT m_IDirect3DDevice9Ex::CreateCubeTexture(THIS_ UINT EdgeLength, UINT Leve
 {
 	Logging::LogDebug() << __FUNCTION__ << " (" << this << ")";
 
-	if (IsForcingD3d9to9Ex() && Pool == D3DPOOL_MANAGED)
+	if (IsForcingD3d9to9Ex() && Pool == D3DPOOL_MANAGED && !(Usage & (D3DUSAGE_DYNAMIC | D3DUSAGE_RENDERTARGET | D3DUSAGE_DEPTHSTENCIL)))
 	{
 		Pool = D3DPOOL_DEFAULT;
 		Usage |= D3DUSAGE_DYNAMIC;
@@ -2370,11 +2378,6 @@ HRESULT m_IDirect3DDevice9Ex::CreateOffscreenPlainSurfaceEx(THIS_ UINT Width, UI
 	}
 
 	HRESULT hr = ProxyInterfaceEx->CreateOffscreenPlainSurfaceEx(Width, Height, Format, Pool, ppSurface, pSharedHandle, Usage);
-
-	if (FAILED(hr) && IsForcingD3d9to9Ex() && Width < 64 && Pool == D3DPOOL_SYSTEMMEM)
-	{
-		hr = ProxyInterfaceEx->CreateOffscreenPlainSurfaceEx(Width, Height, Format, D3DPOOL_DEFAULT, ppSurface, pSharedHandle, Usage);
-	}
 
 	if (SUCCEEDED(hr) && ppSurface)
 	{

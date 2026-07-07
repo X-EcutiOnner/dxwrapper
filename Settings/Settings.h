@@ -111,6 +111,7 @@ inline std::ostream& operator<<(std::ostream& os, const DHEX& dhex) {
 	visit(ForceExclusiveFullscreen) \
 	visit(ForceKeyboardLayout) \
 	visit(ForceMipMapAutoGen) \
+	visit(ForceMipMapUsage) \
 	visit(ForceMixedVertexProcessing) \
 	visit(ForceSystemMemVertexCache) \
 	visit(ForceSingleBeginEndScene) \
@@ -341,6 +342,7 @@ struct CONFIG
 	bool ForceExclusiveFullscreen = false;		// Forces exclusive fullscreen mode in d3d9
 	DHEX ForceKeyboardLayout = {};				// Force specific keyboard layout
 	bool ForceMipMapAutoGen = false;			// Force Direct3d9 to use this AutoGenMipMap
+	bool ForceMipMapUsage = false;				// Force Direct3d9 to use this MipMap levels for all applicable textures even if game doesn't ask for them
 	bool ForceMixedVertexProcessing = false;	// Forces Mixed mode for vertex processing in d3d9
 	bool ForceSystemMemVertexCache = false;		// Forces System Memory caching for vertexes in d3d9
 	bool ForceSingleBeginEndScene = false;		// Ensures that only a single EndScene/BeginScene pair are called per frame

@@ -73,6 +73,7 @@ public:
         LeaveCriticalSection(&Cs);
     }
 
+    // Prevent copying
     CriticalSectionInit(const CriticalSectionInit&) = delete;
     CriticalSectionInit& operator=(const CriticalSectionInit&) = delete;
 
@@ -92,9 +93,44 @@ public:
             LockObj.Leave();
         }
 
+        // Prevent copying
         Lock(const Lock&) = delete;
         Lock& operator=(const Lock&) = delete;
     };
+};
+
+class ScopedAtomicLock
+{
+private:
+    volatile LONG& State;
+    bool Locked = false;
+
+public:
+    ScopedAtomicLock(volatile LONG& State) : State(State)
+    {
+        while (true)
+        {
+            if (InterlockedCompareExchange(&State, 1, 0) == 0)
+            {
+                Locked = true;
+                break;
+            }
+
+            SwitchToThread();
+        }
+    }
+
+    ~ScopedAtomicLock()
+    {
+        if (Locked)
+        {
+            InterlockedExchange(&State, 0);
+        }
+    }
+
+    // Prevent copying
+    ScopedAtomicLock(const ScopedAtomicLock&) = delete;
+    ScopedAtomicLock& operator=(const ScopedAtomicLock&) = delete;
 };
 
 template<typename T>
@@ -121,6 +157,7 @@ public:
         }
     }
 
+    // Prevent copying
     ScopedFlagSet(const ScopedFlagSet&) = delete;
     ScopedFlagSet& operator=(const ScopedFlagSet&) = delete;
 };
@@ -131,6 +168,7 @@ struct ScopedIncrement
 private:
     bool enable;
     T& num;
+
 public:
     // Constructor increments num
     ScopedIncrement(T& num, bool activate = true) : num(num), enable(activate)
@@ -149,6 +187,7 @@ public:
         }
     }
 
+    // Prevent copying
     ScopedIncrement(const ScopedIncrement&) = delete;
     ScopedIncrement& operator=(const ScopedIncrement&) = delete;
 };
@@ -172,7 +211,7 @@ struct __HeapBuffer
         delete[] buffer;
     }
 
-    // Disable copy
+    // Prevent copying
     __HeapBuffer(const __HeapBuffer&) = delete;
     __HeapBuffer& operator=(const __HeapBuffer&) = delete;
 
@@ -216,6 +255,7 @@ public:
         }
     }
 
+    // Prevent copying
     ScopedCriticalSection(const ScopedCriticalSection&) = delete;
     ScopedCriticalSection& operator=(const ScopedCriticalSection&) = delete;
 };
@@ -236,6 +276,7 @@ public:
         }
     }
 
+    // Prevent copying
     ScopedLeaveCriticalSection(const ScopedLeaveCriticalSection&) = delete;
     ScopedLeaveCriticalSection& operator=(const ScopedLeaveCriticalSection&) = delete;
 };

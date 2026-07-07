@@ -213,10 +213,68 @@ HRESULT m_IDirect3DTexture9::LockRect(THIS_ UINT Level, D3DLOCKED_RECT* pLockedR
 
 	HRESULT hr = ProxyInterface->LockRect(Level, pLockedRect, pRect, Flags);
 
+	// Emulate MipMap Lock
+	if (FAILED(hr) &&
+		pLockedRect &&
+		Level &&
+		Level < MipMapLevels &&
+		(m_pDeviceEx->IsForcingD3d9to9Ex() || Config.ForceMipMapAutoGen))
+	{
+		const UINT mipWidth = max(1, Desc.Width >> Level);
+		const UINT mipHeight = max(1, Desc.Height >> Level);
+
+		// Check for valid rect and flags
+		if (ValidateLockRect(mipWidth, mipHeight, pRect) && ValidateTextureLockFlags(Desc, Level, Flags))
+		{
+			ScopedAtomicLock ThreadLock(ThreadState);
+
+			auto& entry = MipLocks[Level];
+
+			// Check if MipMap level is already locked
+			if (entry.IsLocked)
+			{
+				return D3DERR_INVALIDCALL;
+			}
+
+			// Check if the entry needs to be filled out (using Pitch as a determining value)
+			if (!entry.Pitch)
+			{
+				entry.Pitch = ComputePitch(Desc.Format, mipWidth, mipHeight);
+
+				if (!entry.Pitch)
+				{
+					LOG_LIMIT(100, __FUNCTION__ << " Error: Could not compute the pitch of the texture: " << Desc.Format);
+					return D3DERR_INVALIDCALL;
+				}
+
+				DWORD BitCount = GetBitCount(Desc.Format);
+
+				if (BitCount < 8 || BitCount > 128)
+				{
+					BitCount = 64;
+				}
+
+				size_t Size = (max(mipWidth, entry.Pitch) * max(mipHeight, 4) * mipHeight) / 8;
+
+				entry.Data = std::make_unique<uint8_t[]>(Size);
+				ZeroMemory(entry.Data.get(), Size);
+			}
+
+			entry.IsLocked = true;
+			pLockedRect->Pitch = entry.Pitch;
+			pLockedRect->pBits = entry.Data.get();
+
+			return D3D_OK;
+		}
+	}
+
 	if (SUCCEEDED(hr))
 	{
-		const bool IncreamentUSN = !(Flags & D3DLOCK_READONLY);
-		PrepareWritingToTexture(IncreamentUSN);
+		if (Level == 0)
+		{
+			const bool IncreamentUSN = !(Flags & D3DLOCK_READONLY);
+			PrepareWritingToTexture(IncreamentUSN);
+		}
 	}
 
 	return hr;
@@ -225,6 +283,22 @@ HRESULT m_IDirect3DTexture9::LockRect(THIS_ UINT Level, D3DLOCKED_RECT* pLockedR
 HRESULT m_IDirect3DTexture9::UnlockRect(THIS_ UINT Level)
 {
 	Logging::LogDebug() << __FUNCTION__ << " (" << this << ")";
+
+	// Emulate MipMap Unlock
+	if (Level &&
+		Level < MipMapLevels &&
+		(m_pDeviceEx->IsForcingD3d9to9Ex() || Config.ForceMipMapAutoGen))
+	{
+		ScopedAtomicLock ThreadLock(ThreadState);
+
+		auto& entry = MipLocks[Level];
+
+		if (entry.IsLocked)
+		{
+			entry.IsLocked = false;
+			return D3D_OK;
+		}
+	}
 
 	return ProxyInterface->UnlockRect(Level);
 }

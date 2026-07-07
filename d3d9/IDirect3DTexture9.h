@@ -10,6 +10,11 @@ private:
 	DWORD TextureUSN = 0;
 	std::unordered_set<m_IDirect3DSurface9*> SurfaceLevelList;
 
+	volatile LONG ThreadState = 0;
+	UINT MipMapLevels = 1;
+	D3DSURFACE_DESC Desc = {};
+	std::unordered_map<UINT, LOCKED_MIPMAP> MipLocks;
+
 	inline void IncrementTextureUSN() { TextureUSN++; }
 
 public:
@@ -62,7 +67,7 @@ public:
 
 	// Helper functions
 	LPDIRECT3DTEXTURE9 GetProxyInterface() const { return ProxyInterface; }
-	void InitInterface(m_IDirect3DDevice9Ex* Device, REFIID, void*) { m_pDeviceEx = Device; }
+	void InitInterface(m_IDirect3DDevice9Ex* Device, REFIID, void*) { m_pDeviceEx = Device; MipMapLevels = ProxyInterface->GetLevelCount(); ProxyInterface->GetLevelDesc(0, &Desc); }
 	DWORD GetTextureUSN() const { return TextureUSN; }
 	void AddSurfaceToList(m_IDirect3DSurface9* pSurface) { SurfaceLevelList.insert(pSurface); }
 	void RemoveSurfaceFromList(m_IDirect3DSurface9* pSurface) { SurfaceLevelList.erase(pSurface); }

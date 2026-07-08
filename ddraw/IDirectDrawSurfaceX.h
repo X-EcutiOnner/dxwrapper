@@ -581,8 +581,8 @@ public:
 	bool IsUsingEmulation() const { return (surface.emu && surface.emu->DC && surface.emu->GameDC && surface.emu->pBits); }
 	bool IsEmulationDCReady() const { return (IsUsingEmulation() && !surface.emu->UsingGameDC); }
 	bool IsSurfaceDirty() const { return surface.IsDirtyFlag; }
-	bool IsMipMapAutogen() const { return surface.Texture && (surface.Usage & D3DUSAGE_AUTOGENMIPMAP); }
-	bool IsMipMapGenerated() const { return IsMipMapReadyToUse || IsMipMapAutogen(); }
+	bool IsMipMapAutogen() const { return (surface.Usage & D3DUSAGE_AUTOGENMIPMAP); }
+	bool IsMipMapGenerated() const { return IsMipMapReadyToUse || IsMipMapAutogen() || MipMaps.empty(); }
 	void FixTextureFlags(LPDDSURFACEDESC2 lpDDSurfaceDesc2);
 	void PrepareRenderTarget();
 	void ClearDirtyFlags();

@@ -2371,8 +2371,6 @@ HRESULT m_IDirect3DDeviceX::SetRenderState(D3DRENDERSTATETYPE dwRenderStateType,
 				return D3D_OK;
 			}
 
-			DeviceStates.RenderState[dwRenderStateType].State = dwRenderState;
-
 			switch (dwRenderState)
 			{
 			case D3DTBLEND_COPY:
@@ -2386,8 +2384,8 @@ HRESULT m_IDirect3DDeviceX::SetRenderState(D3DRENDERSTATETYPE dwRenderStateType,
 				// Decal texture-blending mode is supported. In this mode, the RGB and alpha values of the texture replace the colors that would have been used with no texturing.
 				SetD9TextureStageState(0, D3DTSS_COLOROP, D3DTOP_SELECTARG1);
 				SetD9TextureStageState(0, D3DTSS_ALPHAOP, D3DTOP_SELECTARG1);
+				break;
 
-				return D3D_OK;
 			case D3DTBLEND_DECALALPHA:
 				// Reset states
 				SetD9TextureStageState(0, D3DTSS_COLORARG1, D3DTA_TEXTURE);
@@ -2399,14 +2397,8 @@ HRESULT m_IDirect3DDeviceX::SetRenderState(D3DRENDERSTATETYPE dwRenderStateType,
 				SetD9TextureStageState(0, D3DTSS_COLORARG2, D3DTA_DIFFUSE);
 				SetD9TextureStageState(0, D3DTSS_ALPHAOP, D3DTOP_SELECTARG2);
 				SetD9TextureStageState(0, D3DTSS_ALPHAARG2, D3DTA_DIFFUSE);
+				break;
 
-				return D3D_OK;
-			case D3DTBLEND_DECALMASK:
-				// This blending mode is not supported. When the least-significant bit of the texture's alpha component is zero, 
-				// the effect is as if texturing were disabled.
-				LOG_LIMIT(100, __FUNCTION__ << " Warning: unsupported 'D3DTBLEND_DECALMASK' state: " << dwRenderState);
-
-				return D3D_OK;
 			case D3DTBLEND_MODULATE:
 				// Reset states
 				SetD9TextureStageState(0, D3DTSS_COLORARG1, D3DTA_TEXTURE);
@@ -2421,8 +2413,8 @@ HRESULT m_IDirect3DDeviceX::SetRenderState(D3DRENDERSTATETYPE dwRenderStateType,
 				SetD9TextureStageState(0, D3DTSS_ALPHAOP, D3DTOP_SELECTARG1);
 				SetD9TextureStageState(0, D3DTSS_ALPHAARG2, D3DTA_DIFFUSE);
 				DeviceStates.alphaOpSet = false;
+				break;
 
-				return D3D_OK;
 			case D3DTBLEND_MODULATEALPHA:
 				// Reset states
 				SetD9TextureStageState(0, D3DTSS_COLORARG1, D3DTA_TEXTURE);
@@ -2435,14 +2427,8 @@ HRESULT m_IDirect3DDeviceX::SetRenderState(D3DRENDERSTATETYPE dwRenderStateType,
 				SetD9TextureStageState(0, D3DTSS_COLORARG2, D3DTA_DIFFUSE);
 				SetD9TextureStageState(0, D3DTSS_ALPHAOP, D3DTOP_MODULATE);
 				SetD9TextureStageState(0, D3DTSS_ALPHAARG2, D3DTA_DIFFUSE);
+				break;
 
-				return D3D_OK;
-			case D3DTBLEND_MODULATEMASK:
-				// This blending mode is not supported. When the least-significant bit of the texture's alpha component is zero, 
-				// the effect is as if texturing were disabled.
-				LOG_LIMIT(100, __FUNCTION__ << " Warning: unsupported 'D3DTBLEND_MODULATEMASK' state: " << dwRenderState);
-
-				return D3D_OK;
 			case D3DTBLEND_ADD:
 				// Reset states
 				SetD9TextureStageState(0, D3DTSS_COLORARG1, D3DTA_TEXTURE);
@@ -2454,21 +2440,34 @@ HRESULT m_IDirect3DDeviceX::SetRenderState(D3DRENDERSTATETYPE dwRenderStateType,
 				SetD9TextureStageState(0, D3DTSS_COLORARG2, D3DTA_DIFFUSE);
 				SetD9TextureStageState(0, D3DTSS_ALPHAOP, D3DTOP_SELECTARG2);
 				SetD9TextureStageState(0, D3DTSS_ALPHAARG2, D3DTA_DIFFUSE);
+				break;
 
+			case D3DTBLEND_MODULATEMASK:
+				// This blending mode is not supported. When the least-significant bit of the texture's alpha component is zero, 
+				// the effect is as if texturing were disabled.
+				LOG_LIMIT(100, __FUNCTION__ << " Warning: unsupported 'D3DTBLEND_MODULATEMASK' state: " << dwRenderState);
 				return D3D_OK;
+
+			case D3DTBLEND_DECALMASK:
+				// This blending mode is not supported. When the least-significant bit of the texture's alpha component is zero, 
+				// the effect is as if texturing were disabled.
+				LOG_LIMIT(100, __FUNCTION__ << " Warning: unsupported 'D3DTBLEND_DECALMASK' state: " << dwRenderState);
+				return D3D_OK;
+
 			default:
 				LOG_LIMIT(100, __FUNCTION__ << " Warning: unsupported 'D3DRENDERSTATE_TEXTUREMAPBLEND' state: " << dwRenderState);
 				return D3D_OK;
 			}
+			DeviceStates.RenderState[dwRenderStateType].State = dwRenderState;
+			return D3D_OK;
 		case D3DRENDERSTATE_ALPHAREF:			// 24
-			dwRenderState &= 0xFF;
-			break;
+			return SetD9RenderState(dwRenderStateType, dwRenderState & 0xFF);
 		case D3DRENDERSTATE_BLENDENABLE:		// 27
 			if (ClientDirectXVersion == 1)
 			{
 				DeviceStates.RenderState[D3DRENDERSTATE_COLORKEYENABLE].State = dwRenderState;
 			}
-			break;
+			return SetD9RenderState(dwRenderStateType, dwRenderState);
 		case D3DRENDERSTATE_ZVISIBLE:			// 30
 			if (dwRenderState != FALSE)
 			{
@@ -2594,9 +2593,9 @@ HRESULT m_IDirect3DDeviceX::SetRenderState(D3DRENDERSTATETYPE dwRenderStateType,
 			return SetStateBlockRenderState(dwRenderStateType, dwRenderState);
 		case D3DRENDERSTATE_COLORKEYBLENDENABLE:// 144
 			return SetStateBlockRenderState(dwRenderStateType, dwRenderState);
+		default:
+			return SetD9RenderState(dwRenderStateType, dwRenderState);
 		}
-
-		return SetD9RenderState(dwRenderStateType, dwRenderState);
 	}
 
 	switch (ProxyDirectXVersion)
@@ -6663,22 +6662,18 @@ void m_IDirect3DDeviceX::SetDrawStates(DWORD dwVertexTypeDesc, DWORD& dwFlags, D
 {
 	PrepDevice();
 
-	// Handle dwFlags
+	const bool UsingColorKey = DeviceStates.RenderState[D3DRENDERSTATE_COLORKEYENABLE].State || DeviceStates.RenderState[D3DRENDERSTATE_COLORKEYBLENDENABLE].State;
+
+	// Legacy device handling
 	if (DirectXVersion < 7)
 	{
 		// dwFlags (D3DDP_WAIT) can be ignored safely
 
+		// Handle dwFlags
 		if (dwFlags & D3DDP_DONOTCLIP)
 		{
 			GetD9RenderState(D3DRS_CLIPPING, &DrawStates.rsClipping);
 			(*d3d9Device)->SetRenderState(D3DRS_CLIPPING, FALSE);
-		}
-		if (DeviceStates.Viewport.UseViewportScale)
-		{
-			dwFlags |= D3DDP_DXW_SCALEMATRIX;
-			GetD9Transform(D3DTS_PROJECTION, &DrawStates.ProjectionMatrix);
-			D3DMATRIX Matrix = UpdateProjectionMatrix(DrawStates.ProjectionMatrix, DeviceStates.Viewport.Scale, DeviceStates.Viewport.ClipScale, !(dwFlags & D3DDP_DONOTCLIP));
-			(*d3d9Device)->SetTransform(D3DTS_PROJECTION, &Matrix);
 		}
 		if ((dwFlags & D3DDP_DONOTLIGHT) || !(dwVertexTypeDesc & D3DFVF_NORMAL) || !IsMaterialSet())
 		{
@@ -6686,11 +6681,33 @@ void m_IDirect3DDeviceX::SetDrawStates(DWORD dwVertexTypeDesc, DWORD& dwFlags, D
 			GetD9RenderState(D3DRS_LIGHTING, &DrawStates.rsLighting);
 			(*d3d9Device)->SetRenderState(D3DRS_LIGHTING, FALSE);
 		}
-		if (dwFlags & D3DDP_DONOTUPDATEEXTENTS)
+		// ToDo: fix Extents see SetRenderState() implementation
+		//if (dwFlags & D3DDP_DONOTUPDATEEXTENTS)
+		//{
+		//	GetRenderState(D3DRENDERSTATE_EXTENTS, &DrawStates.rsExtents);
+		//	SetRenderState(D3DRENDERSTATE_EXTENTS, FALSE);
+		//}
+
+		// Viewport scaling on projection matrix
+		if (DeviceStates.Viewport.UseViewportScale)
 		{
-			// ToDo: fix Extents see SetRenderState() implementation
-			//GetRenderState(D3DRENDERSTATE_EXTENTS, &DrawStates.rsExtents);
-			//SetRenderState(D3DRENDERSTATE_EXTENTS, FALSE);
+			dwFlags |= D3DDP_DXW_SCALEMATRIX;
+			GetD9Transform(D3DTS_PROJECTION, &DrawStates.ProjectionMatrix);
+			D3DMATRIX Matrix = UpdateProjectionMatrix(DrawStates.ProjectionMatrix, DeviceStates.Viewport.Scale, DeviceStates.Viewport.ClipScale, !(dwFlags & D3DDP_DONOTCLIP));
+			(*d3d9Device)->SetTransform(D3DTS_PROJECTION, &Matrix);
+		}
+
+		// Texture alpha replaces; if no texture alpha, use vertex alpha.
+		if (DeviceStates.RenderState[D3DRENDERSTATE_TEXTUREMAPBLEND].State == D3DTBLEND_MODULATE && !DeviceStates.alphaOpSet)
+		{
+			if (CurrentTextureSurfaceX[0]->HasAlphaChannel(UsingColorKey))
+			{
+				(*d3d9Device)->SetTextureStageState(0, D3DTSS_ALPHAOP, D3DTOP_SELECTARG1);
+			}
+			else
+			{
+				(*d3d9Device)->SetTextureStageState(0, D3DTSS_ALPHAOP, D3DTOP_SELECTARG2);
+			}
 		}
 	}
 
@@ -6717,8 +6734,7 @@ void m_IDirect3DDeviceX::SetDrawStates(DWORD dwVertexTypeDesc, DWORD& dwFlags, D
 	// Need to always set viewport
 	(*d3d9Device)->SetViewport(&DeviceStates.Viewport.FixedView);
 
-	const bool UsingColorKey = DeviceStates.RenderState[D3DRENDERSTATE_COLORKEYENABLE].State || DeviceStates.RenderState[D3DRENDERSTATE_COLORKEYBLENDENABLE].State;
-
+	// Handle byte alignment
 	if (Config.DdrawFixByteAlignment > 1)
 	{
 		for (UINT x = 0; x < D3DHAL_TSS_MAXSTAGES; x++)
@@ -6733,59 +6749,44 @@ void m_IDirect3DDeviceX::SetDrawStates(DWORD dwVertexTypeDesc, DWORD& dwFlags, D
 			}
 		}
 	}
-	if (DirectXVersion < 7 && CurrentTextureSurfaceX[0] &&
-		DeviceStates.RenderState[D3DRENDERSTATE_TEXTUREMAPBLEND].State == D3DTBLEND_MODULATE &&
-		!DeviceStates.alphaOpSet)
-	{
-		// Texture alpha replaces; if no texture alpha, use vertex alpha.
-		if (CurrentTextureSurfaceX[0]->HasAlphaChannel(UsingColorKey))
-		{
-			(*d3d9Device)->SetTextureStageState(0, D3DTSS_ALPHAOP, D3DTOP_SELECTARG1);
-		}
-		else
-		{
-			(*d3d9Device)->SetTextureStageState(0, D3DTSS_ALPHAOP, D3DTOP_SELECTARG2);
-		}
-	}
+
+	// Set device textures
 	for (UINT x = 0; x < D3DHAL_TSS_MAXSTAGES; x++)
 	{
-		// Set textures
 		if (CurrentTextureSurfaceX[x])
 		{
-			IDirect3DTexture9* pTexture9 = CurrentTextureSurfaceX[x]->GetD9Texture();
-			if (pTexture9)
-			{
-				(*d3d9Device)->SetTexture(x, pTexture9);
-			}
 			// Generate MipMap levels
 			if (DeviceStates.TextureStageState[x][D3DTSS_MIPFILTER].State != D3DTEXF_NONE && !CurrentTextureSurfaceX[x]->IsMipMapGenerated())
 			{
 				CurrentTextureSurfaceX[x]->GenerateMipMapLevels();
 			}
-		}
-	}
-	if (UsingColorKey)
-	{
-		// Check for color key alpha texture
-		for (UINT x = 0; x < D3DHAL_TSS_MAXSTAGES; x++)
-		{
-			if (CurrentTextureSurfaceX[x] && CurrentTextureSurfaceX[x]->IsColorKeyTexture() && CurrentTextureSurfaceX[x]->GetD9DrawTexture())
+			// Color key alpha texture
+			if (UsingColorKey && CurrentTextureSurfaceX[x]->IsColorKeyTexture() && CurrentTextureSurfaceX[x]->GetD9DrawTexture())
 			{
 				dwFlags |= D3DDP_DXW_ALPHACOLORKEY;
 				(*d3d9Device)->SetTexture(x, CurrentTextureSurfaceX[x]->GetD9DrawTexture());
 			}
-		}
-		if (dwFlags & D3DDP_DXW_ALPHACOLORKEY)
-		{
-			GetD9RenderState(D3DRS_ALPHATESTENABLE, &DrawStates.rsAlphaTestEnable);
-			GetD9RenderState(D3DRS_ALPHAFUNC, &DrawStates.rsAlphaFunc);
-			GetD9RenderState(D3DRS_ALPHAREF, &DrawStates.rsAlphaRef);
-
-			(*d3d9Device)->SetRenderState(D3DRS_ALPHATESTENABLE, TRUE);
-			(*d3d9Device)->SetRenderState(D3DRS_ALPHAFUNC, D3DCMP_GREATER);
-			(*d3d9Device)->SetRenderState(D3DRS_ALPHAREF, (DWORD)0x01);
+			// Set texture
+			else if (IDirect3DTexture9* pTexture9 = CurrentTextureSurfaceX[x]->GetD9Texture(); pTexture9 != nullptr)
+			{
+				(*d3d9Device)->SetTexture(x, pTexture9);
+			}
 		}
 	}
+
+	// Set alpha color render states
+	if (dwFlags & D3DDP_DXW_ALPHACOLORKEY)
+	{
+		GetD9RenderState(D3DRS_ALPHATESTENABLE, &DrawStates.rsAlphaTestEnable);
+		GetD9RenderState(D3DRS_ALPHAFUNC, &DrawStates.rsAlphaFunc);
+		GetD9RenderState(D3DRS_ALPHAREF, &DrawStates.rsAlphaRef);
+
+		(*d3d9Device)->SetRenderState(D3DRS_ALPHATESTENABLE, TRUE);
+		(*d3d9Device)->SetRenderState(D3DRS_ALPHAFUNC, D3DCMP_GREATER);
+		(*d3d9Device)->SetRenderState(D3DRS_ALPHAREF, (DWORD)0x01);
+	}
+
+	// Color key shader
 	if ((dwFlags & D3DDP_DXW_COLORKEYENABLE) && ddrawParent)
 	{
 		if (!colorkeyPixelShader || !*colorkeyPixelShader)
@@ -6799,6 +6800,8 @@ void m_IDirect3DDeviceX::SetDrawStates(DWORD dwVertexTypeDesc, DWORD& dwFlags, D
 			(*d3d9Device)->SetPixelShaderConstantF(1, DrawStates.highColorKey, 1);
 		}
 	}
+
+	// Vertex fixup shader (ToDo)
 	/*if ((dwVertexTypeDesc & D3DFVF_XYZRHW) && d3d9Device && *d3d9Device && ddrawParent)
 	{
 		if (!fixupVertexShader || !*fixupVertexShader)
@@ -6824,25 +6827,24 @@ void m_IDirect3DDeviceX::SetDrawStates(DWORD dwVertexTypeDesc, DWORD& dwFlags, D
 
 void m_IDirect3DDeviceX::RestoreDrawStates(HRESULT hr, DWORD dwFlags, DWORD DirectXVersion)
 {
-	// Handle dwFlags
+	// Legacy device handling
 	if (DirectXVersion < 7)
 	{
 		if (dwFlags & D3DDP_DONOTCLIP)
 		{
 			(*d3d9Device)->SetRenderState(D3DRS_CLIPPING, DrawStates.rsClipping);
 		}
-		if (dwFlags & D3DDP_DXW_SCALEMATRIX)
-		{
-			(*d3d9Device)->SetTransform(D3DTS_PROJECTION, &DrawStates.ProjectionMatrix);
-		}
 		if (dwFlags & D3DDP_DONOTLIGHT)
 		{
 			(*d3d9Device)->SetRenderState(D3DRS_LIGHTING, DrawStates.rsLighting);
 		}
-		if (dwFlags & D3DDP_DONOTUPDATEEXTENTS)
+		//if (dwFlags & D3DDP_DONOTUPDATEEXTENTS)
+		//{
+		//	SetRenderState(D3DRENDERSTATE_EXTENTS, DrawStates.rsExtents);
+		//}
+		if (dwFlags & D3DDP_DXW_SCALEMATRIX)
 		{
-			// ToDo: fix Extents see SetRenderState() implementation
-			//SetRenderState(D3DRENDERSTATE_EXTENTS, DrawStates.rsExtents);
+			(*d3d9Device)->SetTransform(D3DTS_PROJECTION, &DrawStates.ProjectionMatrix);
 		}
 	}
 	if (Config.DdrawFixByteAlignment > 1)
@@ -6856,18 +6858,18 @@ void m_IDirect3DDeviceX::RestoreDrawStates(HRESULT hr, DWORD dwFlags, DWORD Dire
 			}
 		}
 	}
-	if (dwFlags & D3DDP_DXW_ALPHACOLORKEY)
-	{
-		SetD9RenderState(D3DRS_ALPHATESTENABLE, DrawStates.rsAlphaTestEnable);
-		SetD9RenderState(D3DRS_ALPHAFUNC, DrawStates.rsAlphaFunc);
-		SetD9RenderState(D3DRS_ALPHAREF, DrawStates.rsAlphaRef);
-	}
 	for (UINT x = 0; x < D3DHAL_TSS_MAXSTAGES; x++)
 	{
 		if (CurrentTextureSurfaceX[x])
 		{
 			(*d3d9Device)->SetTexture(x, nullptr);
 		}
+	}
+	if (dwFlags & D3DDP_DXW_ALPHACOLORKEY)
+	{
+		SetD9RenderState(D3DRS_ALPHATESTENABLE, DrawStates.rsAlphaTestEnable);
+		SetD9RenderState(D3DRS_ALPHAFUNC, DrawStates.rsAlphaFunc);
+		SetD9RenderState(D3DRS_ALPHAREF, DrawStates.rsAlphaRef);
 	}
 	if (dwFlags & D3DDP_DXW_COLORKEYENABLE)
 	{

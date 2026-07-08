@@ -3917,7 +3917,14 @@ HRESULT m_IDirectDrawSurfaceX::SetLOD(DWORD dwMaxLOD)
 		DWORD levelCount = GetLevelCount();
 		DWORD maxLOD = (levelCount > 0) ? (levelCount - 1) : 0;
 
-		LODLevel = min(dwMaxLOD, maxLOD);
+		DWORD NewLODLevel = min(dwMaxLOD, maxLOD);
+
+		if (NewLODLevel < LODLevel && IsMipMapGenerated())
+		{
+			IsMipMapReadyToUse = false;
+		}
+
+		LODLevel = NewLODLevel;
 
 		if (surface.Texture)
 		{
@@ -4540,7 +4547,7 @@ void m_IDirectDrawSurfaceX::CheckMipMapLevelGen()
 
 HRESULT m_IDirectDrawSurfaceX::GenerateMipMapLevels()
 {
-	if (IsMipMapAutogen())
+	if (!surface.Texture || MipMaps.empty() || IsMipMapAutogen())
 	{
 		return DD_OK;
 	}

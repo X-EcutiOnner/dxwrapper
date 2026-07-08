@@ -589,8 +589,10 @@ HRESULT m_IDirect3DDevice9Ex::CreateTexture(THIS_ UINT Width, UINT Height, UINT 
 	}
 
 	// Only safe for default/managed pool, non-render-target/non-depth-stencil textures
+	bool ForceMipMaps = false;
 	if (Config.ForceMipMapUsage && (Pool == D3DPOOL_DEFAULT || Pool == D3DPOOL_MANAGED) && !(Usage & (D3DUSAGE_RENDERTARGET | D3DUSAGE_DEPTHSTENCIL)) && Levels == 1)
 	{
+		ForceMipMaps = true;
 		Levels = 0;
 		Usage |= D3DUSAGE_AUTOGENMIPMAP;
 	}
@@ -605,7 +607,14 @@ HRESULT m_IDirect3DDevice9Ex::CreateTexture(THIS_ UINT Width, UINT Height, UINT 
 
 	if (SUCCEEDED(hr) && ppTexture)
 	{
-		*ppTexture = ProxyAddressLookupTable9.FindCreateAddress<m_IDirect3DTexture9, m_IDirect3DDevice9Ex, LPVOID>(*ppTexture, this, IID_IDirect3DTexture9, nullptr);
+		m_IDirect3DTexture9* pTextureX = ProxyAddressLookupTable9.FindCreateAddress<m_IDirect3DTexture9, m_IDirect3DDevice9Ex, LPVOID>(*ppTexture, this, IID_IDirect3DTexture9, nullptr);
+
+		if (ForceMipMaps)
+		{
+			pTextureX->SetForcingMipMaps();
+		}
+
+		*ppTexture = pTextureX;
 
 		return D3D_OK;
 	}
@@ -1511,19 +1520,21 @@ HRESULT m_IDirect3DDevice9Ex::SetTexture(DWORD Stage, IDirect3DBaseTexture9* pTe
 	Logging::LogDebug() << __FUNCTION__ << " (" << this << ")";
 
 	bool isTexCube = false;
+	bool isForcedMipMapTexture = false;
 	if (pTexture)
 	{
 		switch (pTexture->GetType())
 		{
 		case D3DRTYPE_TEXTURE:
+			isForcedMipMapTexture = static_cast<m_IDirect3DTexture9*>(pTexture)->ForcingMipMaps();
 			pTexture = static_cast<m_IDirect3DTexture9*>(pTexture)->GetProxyInterface();
 			break;
 		case D3DRTYPE_VOLUMETEXTURE:
 			pTexture = static_cast<m_IDirect3DVolumeTexture9*>(pTexture)->GetProxyInterface();
 			break;
 		case D3DRTYPE_CUBETEXTURE:
-			pTexture = static_cast<m_IDirect3DCubeTexture9*>(pTexture)->GetProxyInterface();
 			isTexCube = true;
+			pTexture = static_cast<m_IDirect3DCubeTexture9*>(pTexture)->GetProxyInterface();
 			break;
 		default:
 			return D3DERR_INVALIDCALL;
@@ -1541,6 +1552,7 @@ HRESULT m_IDirect3DDevice9Ex::SetTexture(DWORD Stage, IDirect3DBaseTexture9* pTe
 		if (Stage == 0)
 		{
 			isBlankTextureUsed = false;
+			IsUsingForcedMipMapTexture = isForcedMipMapTexture;
 			pCurrentTexture = pTexture;
 		}
 	}
@@ -2468,6 +2480,16 @@ void m_IDirect3DDevice9Ex::ApplyPreDrawFixes()
 		SetEnvironmentCubeMapTexture();
 	}
 
+	// Handle forced MipMap usage
+	if (IsUsingForcedMipMapTexture)
+	{
+		GetSamplerState(0, D3DSAMP_MIPFILTER, &ssMipFilter);
+		if (ssMipFilter == D3DTEXF_NONE)
+		{
+			SetSamplerState(0, D3DSAMP_MIPFILTER, D3DTEXF_POINT);
+		}
+	}
+
 	// Handle render target and depth stencil mismatch
 	if (DeviceDetails.DeviceMultiSampleFlag)
 	{
@@ -2523,6 +2545,12 @@ void m_IDirect3DDevice9Ex::ApplyPreDrawFixes()
 
 void m_IDirect3DDevice9Ex::ApplyPostDrawFixes()
 {
+	// Handle forced MipMap usage
+	if (IsUsingForcedMipMapTexture && ssMipFilter == D3DTEXF_NONE)
+	{
+		SetSamplerState(0, D3DSAMP_MIPFILTER, ssMipFilter);
+	}
+
 	// Resync surface after render target and depth stencil mismatch
 	if (msaa.MultiSampleMismatch && msaa.RenderTarget)
 	{

@@ -86,6 +86,10 @@ private:
 	// State block
 	IDirect3DStateBlock9* pStateBlock = nullptr;
 
+	// Forcing MipMaps
+	bool IsUsingForcedMipMapTexture = false;
+	DWORD ssMipFilter = D3DTEXF_NONE;
+
 	// For environment map cube
 	bool isTextureCubeMap[MAX_TEXTURE_STAGES] = {};
 	bool isTransformCubeMap[MAX_TEXTURE_STAGES] = {};

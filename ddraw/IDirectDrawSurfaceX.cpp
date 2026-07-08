@@ -6425,11 +6425,6 @@ void m_IDirectDrawSurfaceX::SetDirtyFlag(DWORD MipMapLevel)
 
 	if (MipMapLevel == 0)
 	{
-		if (AutoMipMap && surface.Texture)
-		{
-			surface.Texture->GenerateMipSubLevels();
-		}
-
 		if (IsPrimarySurface() && ddrawParent && !ddrawParent->IsInScene())
 		{
 			dirtyFlag = true;

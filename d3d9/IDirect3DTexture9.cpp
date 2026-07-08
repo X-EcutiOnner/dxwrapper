@@ -164,12 +164,22 @@ HRESULT m_IDirect3DTexture9::SetAutoGenFilterType(THIS_ D3DTEXTUREFILTERTYPE Fil
 {
 	Logging::LogDebug() << __FUNCTION__ << " (" << this << ")";
 
+	if (IsForcingMipMaps)
+	{
+		return D3D_OK;
+	}
+
 	return ProxyInterface->SetAutoGenFilterType(FilterType);
 }
 
 D3DTEXTUREFILTERTYPE m_IDirect3DTexture9::GetAutoGenFilterType(THIS)
 {
 	Logging::LogDebug() << __FUNCTION__ << " (" << this << ")";
+
+	if (IsForcingMipMaps)
+	{
+		return D3DTEXF_NONE;
+	}
 
 	return ProxyInterface->GetAutoGenFilterType();
 }
@@ -185,7 +195,17 @@ HRESULT m_IDirect3DTexture9::GetLevelDesc(THIS_ UINT Level, D3DSURFACE_DESC *pDe
 {
 	Logging::LogDebug() << __FUNCTION__ << " (" << this << ")";
 
-	return ProxyInterface->GetLevelDesc(Level, pDesc);
+	HRESULT hr = ProxyInterface->GetLevelDesc(Level, pDesc);
+
+	if (SUCCEEDED(hr))
+	{
+		if (IsForcingMipMaps && pDesc)
+		{
+			pDesc->Usage &= ~D3DUSAGE_AUTOGENMIPMAP;
+		}
+	}
+
+	return hr;
 }
 
 HRESULT m_IDirect3DTexture9::GetSurfaceLevel(THIS_ UINT Level, IDirect3DSurface9** ppSurfaceLevel)

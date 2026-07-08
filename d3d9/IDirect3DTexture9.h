@@ -7,6 +7,8 @@ private:
 	m_IDirect3DDevice9Ex* m_pDeviceEx;
 	const IID WrapperID = IID_IDirect3DTexture9;
 
+	bool IsForcingMipMaps = false;
+
 	DWORD TextureUSN = 0;
 	std::unordered_set<m_IDirect3DSurface9*> SurfaceLevelList;
 
@@ -68,4 +70,6 @@ public:
 	void RemoveSurfaceFromList(m_IDirect3DSurface9* pSurface) { SurfaceLevelList.erase(pSurface); }
 	void PrepareReadingFromTexture();
 	void PrepareWritingToTexture(bool IncreamentUSN);
+	inline void SetForcingMipMaps() { IsForcingMipMaps = true; }
+	inline bool ForcingMipMaps() const { return IsForcingMipMaps; }
 };

@@ -104,16 +104,6 @@ struct DEVICE_REFCOUNT_CHECKER {
 	bool D3DXSprite = false;
 };
 
-struct LOCKED_MIPMAP
-{
-	bool IsLocked = false;
-	UINT Pitch = 0;
-	std::unique_ptr<uint8_t[]> Data;
-};
-
-DWORD GetBitCount(D3DFORMAT Format);
-DWORD ComputePitch(D3DFORMAT Format, DWORD Width, DWORD Height);
-
 typedef int(WINAPI* D3DPERF_BeginEventProc)(D3DCOLOR, LPCWSTR);
 typedef int(WINAPI* D3DPERF_EndEventProc)();
 typedef DWORD(WINAPI* D3DPERF_GetStatusProc)();
@@ -129,69 +119,6 @@ typedef HRESULT(WINAPI* Direct3DCreate9On12ExProc)(UINT SDKVersion, D3D9ON12_ARG
 constexpr UINT NO_MAP_VALUE = 0xFFFFFFFF;
 
 void WINAPI Direct3D9SetSwapEffectUpgradeShim(int Unknown);
-
-static inline bool ValidateTextureLockFlags(D3DSURFACE_DESC& Desc, UINT Level, DWORD Flags)
-{
-	constexpr DWORD ValidFlags =
-		D3DLOCK_READONLY |
-		D3DLOCK_DISCARD |
-		D3DLOCK_NO_DIRTY_UPDATE |
-		D3DLOCK_NOSYSLOCK;
-
-	// Unknown flags
-	if (Flags & ~ValidFlags)
-	{
-		return false;
-	}
-
-	// DISCARD restrictions
-	if (Flags & D3DLOCK_DISCARD)
-	{
-		// Must be dynamic
-		if (!(Desc.Usage & D3DUSAGE_DYNAMIC))
-		{
-			return false;
-		}
-
-		// Only top mip level
-		if (Level != 0)
-		{
-			return false;
-		}
-
-		// Cannot combine with READONLY
-		if (Flags & D3DLOCK_READONLY)
-		{
-			return false;
-		}
-	}
-
-	return true;
-}
-
-static inline bool ValidateLockRect(UINT mipWidth, UINT mipHeight, CONST RECT* pRect)
-{
-	if (!pRect)
-	{
-		return true;
-	}
-
-	if (pRect->left < 0 ||
-		pRect->top < 0 ||
-		pRect->right > (LONG)mipWidth ||
-		pRect->bottom > (LONG)mipHeight)
-	{
-		return false;
-	}
-
-	if (pRect->left >= pRect->right ||
-		pRect->top >= pRect->bottom)
-	{
-		return false;
-	}
-
-	return true;
-}
 
 namespace D3d9Wrapper
 {

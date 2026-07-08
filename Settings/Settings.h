@@ -110,7 +110,6 @@ inline std::ostream& operator<<(std::ostream& os, const DHEX& dhex) {
 	visit(ExcludeProcess) \
 	visit(ForceExclusiveFullscreen) \
 	visit(ForceKeyboardLayout) \
-	visit(ForceMipMapAutoGen) \
 	visit(ForceMipMapUsage) \
 	visit(ForceMixedVertexProcessing) \
 	visit(ForceSystemMemVertexCache) \
@@ -341,7 +340,6 @@ struct CONFIG
 	DWORD FixPerfCounterUptime = 0;				// Reduces uptime counters to prevent slowdowns in games
 	bool ForceExclusiveFullscreen = false;		// Forces exclusive fullscreen mode in d3d9
 	DHEX ForceKeyboardLayout = {};				// Force specific keyboard layout
-	bool ForceMipMapAutoGen = false;			// Force Direct3d9 to use this AutoGenMipMap
 	bool ForceMipMapUsage = false;				// Force Direct3d9 to use this MipMap levels for all applicable textures even if game doesn't ask for them
 	bool ForceMixedVertexProcessing = false;	// Forces Mixed mode for vertex processing in d3d9
 	bool ForceSystemMemVertexCache = false;		// Forces System Memory caching for vertexes in d3d9

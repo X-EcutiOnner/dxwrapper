@@ -49,6 +49,7 @@ namespace Settings
 	bool DisableHighDPIScaling = false;
 	bool DisableHighDPIScaling_Set = false;
 	bool ForceDirect3D9On12 = false;
+	bool ForceMipMapAutoGen = false;
 
 	// Function declarations
 	bool IsValueEnabled(char*);
@@ -326,6 +327,7 @@ void __stdcall Settings::ParseCallback(char* name, char* value)
 	SET_LOCAL_VALUE(DDrawCompat31);
 	SET_LOCAL_VALUE(DisableHighDPIScaling);
 	SET_LOCAL_VALUE(ForceDirect3D9On12);
+	SET_LOCAL_VALUE(ForceMipMapAutoGen);
 
 	if (!_stricmp(name, "DisableHighDPIScaling"))
 	{
@@ -838,8 +840,8 @@ void CONFIG::SetConfig()
 	// Set unset options
 	CacheClipPlane = (CacheClipPlane != 0);
 	DdrawResolutionHack = (DdrawResolutionHack != 0);
-	DdrawForceMipMapAutoGen = DdrawForceMipMapAutoGen || ForceMipMapAutoGen;
 	ConfigureDpiAwareness = IsSet(ConfigureDpiAwareness) ? ConfigureDpiAwareness : DisableHighDPIScaling_Set ? DisableHighDPIScaling : 1;
+	ForceMipMapUsage = (ForceMipMapUsage || ForceMipMapAutoGen);
 	LimitStateBlocks = (LimitStateBlocks != NOT_EXIST) ? LimitStateBlocks : (Dd7to9 || D3d8to9);
 	WindowModeGammaShader = (WindowModeGammaShader != NOT_EXIST) ? WindowModeGammaShader : 1;
 }

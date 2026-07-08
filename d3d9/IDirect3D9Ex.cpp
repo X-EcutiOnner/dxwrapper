@@ -1029,9 +1029,6 @@ void m_IDirect3D9Ex::AdjustWindowStyle(HWND hWnd, bool IsDirectDrawDevice, bool 
 	// Log style changes
 	if (newStyle != lStyle || newExStyle != lExStyle || frameStyleChanged || needsZOrderChange)
 	{
-		newStyle = GetWindowLong(hWnd, GWL_STYLE);
-		newExStyle = GetWindowLong(hWnd, GWL_EXSTYLE);
-
 		LOG_LIMIT(3, __FUNCTION__ <<
 			" Window Style: " << Logging::hex(lStyle) << " -> " << Logging::hex(newStyle) <<
 			" ExStyle: " << Logging::hex(lExStyle) << " -> " << Logging::hex(newExStyle)

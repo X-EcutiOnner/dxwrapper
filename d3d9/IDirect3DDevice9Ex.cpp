@@ -744,7 +744,7 @@ HRESULT m_IDirect3DDevice9Ex::CreateRenderTarget(THIS_ UINT Width, UINT Height, 
 	HRESULT hr = D3DERR_INVALIDCALL;
 
 	// Try Multisampling
-	if (DeviceDetails.DeviceMultiSampleFlag && (MultiSample || !DeviceDetails.UseAppMultiSampleState))
+	if (DeviceDetails.DeviceMultiSampleFlag && (MultiSample || !DeviceDetails.UseAppMultiSampleState) && IsMSAACompatibleRenderTargetFormat(Format))
 	{
 		hr = ProxyInterface->CreateRenderTarget(Width, Height, Format, DeviceDetails.DeviceMultiSampleType, DeviceDetails.DeviceMultiSampleQuality, FALSE, ppSurface, pSharedHandle);
 	}
@@ -2338,7 +2338,7 @@ HRESULT m_IDirect3DDevice9Ex::CreateRenderTargetEx(THIS_ UINT Width, UINT Height
 	HRESULT hr = D3DERR_INVALIDCALL;
 
 	// Try Multisampling
-	if (DeviceDetails.DeviceMultiSampleFlag && (MultiSample || !DeviceDetails.UseAppMultiSampleState))
+	if (DeviceDetails.DeviceMultiSampleFlag && (MultiSample || !DeviceDetails.UseAppMultiSampleState) && IsMSAACompatibleRenderTargetFormat(Format))
 	{
 		hr = ProxyInterfaceEx->CreateRenderTargetEx(Width, Height, Format, DeviceDetails.DeviceMultiSampleType, DeviceDetails.DeviceMultiSampleQuality, FALSE, ppSurface, pSharedHandle, Usage);
 	}
@@ -2501,11 +2501,11 @@ void m_IDirect3DDevice9Ex::ApplyPreDrawFixes()
 			ComPtr<m_IDirect3DSurface9> pSurface;
 			if (SUCCEEDED(GetRenderTarget(0, reinterpret_cast<IDirect3DSurface9**>(pSurface.GetAddressOf()))) && pSurface.Get())
 			{
-				msaa.RenderTarget = pSurface.Get();
-
-				LPDIRECT3DSURFACE9 pRenderTarget = msaa.RenderTarget->GetMultiSampledSurface();
-				if (pRenderTarget)
+				LPDIRECT3DSURFACE9 pRenderTarget = pSurface->GetMultiSampledSurface();
+				if (pRenderTarget && pRenderTarget != pSurface->GetProxyInterface())
 				{
+					msaa.RenderTarget = pSurface.Get();
+
 					if (FAILED(ProxyInterface->SetRenderTarget(0, pRenderTarget)))
 					{
 						LOG_LIMIT(100, __FUNCTION__ << " Warning: failed to set emulated render target!");

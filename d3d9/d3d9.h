@@ -95,6 +95,33 @@ struct D3DDISPLAYMODEEX_CONVERT : public D3DDISPLAYMODEEX {
 	}
 };
 
+inline bool IsMSAACompatibleRenderTargetFormat(D3DFORMAT Format)
+{
+	switch (Format)
+	{
+		// 16-bit RGB
+	case D3DFMT_R5G6B5:
+	case D3DFMT_X1R5G5B5:
+	case D3DFMT_A1R5G5B5:
+	case D3DFMT_A4R4G4B4:
+
+		// 32-bit RGB
+	case D3DFMT_X8R8G8B8:
+	case D3DFMT_A8R8G8B8:
+	case D3DFMT_A2R10G10B10:
+
+		// HDR
+	case D3DFMT_A16B16G16R16:
+	case D3DFMT_A16B16G16R16F:
+	case D3DFMT_A32B32G32R32F:
+
+		return true;
+
+	default:
+		return false;
+	}
+}
+
 struct DEVICE_REFCOUNT_CHECKER {
 	bool Texture = false;
 	bool StateBlock = false;

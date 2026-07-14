@@ -343,7 +343,8 @@ bool m_IDirect3DSurface9::ShouldEmulateNonMultiSampledSurface() const
 		!Desc.MultiSampleType &&
 		(Desc.Usage & D3DUSAGE_RENDERTARGET) &&
 		(Desc.Pool == D3DPOOL_DEFAULT) &&
-		IsSurfaceTexture && pTextureContainer);
+		IsSurfaceTexture && pTextureContainer &&
+		IsMSAACompatibleRenderTargetFormat(Desc.Format));
 }
 
 LPDIRECT3DSURFACE9 m_IDirect3DSurface9::GetNonMultiSampledSurface(DWORD Flags)

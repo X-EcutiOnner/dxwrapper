@@ -157,9 +157,11 @@ HRESULT m_IDirect3DVertexBufferX::Lock(DWORD dwFlags, LPVOID* lplpData, LPDWORD 
 		// If using read only and not write only
 		dwFlags = (dwFlags & DDLOCK_READONLY) && !(dwFlags & DDLOCK_WRITEONLY) ? dwFlags : (dwFlags & ~(DDLOCK_READONLY | DDLOCK_WRITEONLY));
 
-		DWORD Flags = (dwFlags & (DDLOCK_READONLY | DDLOCK_DISCARDCONTENTS | DDLOCK_NOSYSLOCK)) |
-			(IsVBEmulated || (Config.DdrawVertexLockDiscard && !(dwFlags & DDLOCK_READONLY)) ? D3DLOCK_DISCARD : NULL) |
-			(Config.DdrawNoDrawBufferSysLock ? D3DLOCK_NOSYSLOCK : NULL);
+		DWORD Flags =
+			((dwFlags & (DDLOCK_READONLY | DDLOCK_DISCARDCONTENTS | DDLOCK_NOSYSLOCK)) |
+				(IsVBEmulated || (Config.DdrawVertexLockDiscard && !(dwFlags & DDLOCK_READONLY)) ? D3DLOCK_DISCARD : NULL) |
+				(Config.DdrawNoDrawBufferSysLock ? D3DLOCK_NOSYSLOCK : NULL)) &
+			~(d3d9VBDesc.Pool == D3DPOOL_MANAGED ? DDLOCK_DISCARDCONTENTS : 0);
 
 		// Handle emulated readonly
 		if (IsVBEmulated && (Flags & D3DLOCK_READONLY))
@@ -678,16 +680,15 @@ HRESULT m_IDirect3DVertexBufferX::CreateD3D9VertexBuffer()
 		return DDERR_GENERIC;
 	}
 
-	// ToDo: implement D3DVBCAPS_OPTIMIZED
-
 	IsVBEmulated = (VB.Desc.dwFVF == D3DFVF_LVERTEX) || (Config.DdrawClampVertexZDepth && (VB.Desc.dwFVF && D3DFVF_XYZRHW));
 
 	d3d9VBDesc.FVF = (VB.Desc.dwFVF == D3DFVF_LVERTEX) ? D3DFVF_LVERTEX9 : VB.Desc.dwFVF;
 	d3d9VBDesc.Size = GetVertexStride(d3d9VBDesc.FVF) * VB.Desc.dwNumVertices;
-	d3d9VBDesc.Usage = D3DUSAGE_DYNAMIC |
+	d3d9VBDesc.Pool = (VB.Desc.dwCaps & D3DVBCAPS_SYSTEMMEMORY) ? D3DPOOL_SYSTEMMEM : D3DPOOL_MANAGED;
+	d3d9VBDesc.Usage =
+		(d3d9VBDesc.Pool != D3DPOOL_MANAGED ? D3DUSAGE_DYNAMIC : 0) |
 		((VB.Desc.dwCaps & D3DVBCAPS_WRITEONLY) || IsVBEmulated ? D3DUSAGE_WRITEONLY : 0) |
 		((VB.Desc.dwCaps & D3DVBCAPS_DONOTCLIP) ? D3DUSAGE_DONOTCLIP : 0);
-	d3d9VBDesc.Pool = (VB.Desc.dwCaps & D3DVBCAPS_SYSTEMMEMORY) ? D3DPOOL_SYSTEMMEM : D3DPOOL_DEFAULT;
 
 	HRESULT hr = (*d3d9Device)->CreateVertexBuffer(d3d9VBDesc.Size, d3d9VBDesc.Usage, d3d9VBDesc.FVF, d3d9VBDesc.Pool, &d3d9VertexBuffer, nullptr);
 	if (FAILED(hr))

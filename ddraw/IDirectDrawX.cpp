@@ -122,17 +122,18 @@ namespace {
 	LPDIRECT3DPIXELSHADER9 colorkeyPixelShader = nullptr;
 	LPDIRECT3DPIXELSHADER9 gammaPixelShader = nullptr;
 	LPDIRECT3DVERTEXSHADER9 fixupVertexShader = nullptr;
-	constexpr UINT IndexBufferRotationSize = 3;
+	constexpr UINT IndexBufferRotationSize = 2;
+	constexpr DWORD IndexBufferMinChunkSize = 512;
 	struct {
-		DX_INDEX_BUFFER IndexBuffer[8] = {
-			DX_INDEX_BUFFER(64),
-			DX_INDEX_BUFFER(128),
-			DX_INDEX_BUFFER(256),
-			DX_INDEX_BUFFER(512),
-			DX_INDEX_BUFFER(1024),
-			DX_INDEX_BUFFER(2048),
-			DX_INDEX_BUFFER(4096),
-			DX_INDEX_BUFFER(0xFFFFFFFF / sizeof(WORD))
+		std::vector<DX_INDEX_BUFFER>IndexBuffer = {
+			//DX_INDEX_BUFFER(64),
+			//DX_INDEX_BUFFER(128),
+			//DX_INDEX_BUFFER(256),
+			//DX_INDEX_BUFFER(512),
+			//DX_INDEX_BUFFER(1024),
+			//DX_INDEX_BUFFER(2048),
+			//DX_INDEX_BUFFER(4096),
+			DX_INDEX_BUFFER(UINT_MAX / sizeof(WORD))
 		};
 	} Layer[IndexBufferRotationSize];
 
@@ -3134,7 +3135,7 @@ LPDIRECT3DVERTEXSHADER9* m_IDirectDrawX::GetFixupVertexShader()
 LPDIRECT3DINDEXBUFFER9 m_IDirectDrawX::GetIndexBuffer(LPWORD lpwIndices, DWORD dwIndexCount)
 {
 	static UINT x = 0;
-	for (auto& entry : Layer[++x % IndexBufferRotationSize].IndexBuffer)
+	for (auto& entry : Layer[x++ % IndexBufferRotationSize].IndexBuffer)
 	{
 		if (dwIndexCount <= entry.MaxCount)
 		{
@@ -3144,11 +3145,16 @@ LPDIRECT3DINDEXBUFFER9 m_IDirectDrawX::GetIndexBuffer(LPWORD lpwIndices, DWORD d
 	return nullptr;
 }
 
-LPDIRECT3DINDEXBUFFER9 m_IDirectDrawX::GetIndexBufferX(LPWORD lpwIndices, DWORD dwIndexCount, DWORD& IndexBufferSize, LPDIRECT3DINDEXBUFFER9& d3d9IndexBuffer)
+inline LPDIRECT3DINDEXBUFFER9 m_IDirectDrawX::GetIndexBufferX(LPWORD lpwIndices, DWORD dwIndexCount, DWORD& IndexBufferSize, LPDIRECT3DINDEXBUFFER9& d3d9IndexBuffer)
 {
 	if (!lpwIndices)
 	{
 		LOG_LIMIT(100, __FUNCTION__ << " Error: nullptr Indices!");
+		return nullptr;
+	}
+
+	if (dwIndexCount > (UINT_MAX / sizeof(WORD)))
+	{
 		return nullptr;
 	}
 
@@ -3158,35 +3164,35 @@ LPDIRECT3DINDEXBUFFER9 m_IDirectDrawX::GetIndexBufferX(LPWORD lpwIndices, DWORD 
 		return nullptr;
 	}
 
-	DWORD NewIndexSize = dwIndexCount * sizeof(WORD);
+	const DWORD IndexSize = dwIndexCount * sizeof(WORD);
 
 	HRESULT hr = D3D_OK;
-	if (!d3d9IndexBuffer || NewIndexSize > IndexBufferSize)
+	if (!d3d9IndexBuffer || IndexSize > IndexBufferSize)
 	{
 		ReleaseD3D9IndexBuffer(d3d9IndexBuffer, IndexBufferSize);
+
+		const DWORD IndexCreationSize = ((IndexSize + IndexBufferMinChunkSize - 1) / IndexBufferMinChunkSize) * IndexBufferMinChunkSize;
+
 		// Create in video memory and then use discard when locking to improve system performance
-		hr = d3d9Device->CreateIndexBuffer(NewIndexSize, D3DUSAGE_DYNAMIC | D3DUSAGE_WRITEONLY, D3DFMT_INDEX16, D3DPOOL_DEFAULT, &d3d9IndexBuffer, nullptr);
-	}
+		hr = d3d9Device->CreateIndexBuffer(IndexCreationSize, D3DUSAGE_DYNAMIC | D3DUSAGE_WRITEONLY, D3DFMT_INDEX16, D3DPOOL_DEFAULT, &d3d9IndexBuffer, nullptr);
 
-	if (FAILED(hr))
-	{
-		LOG_LIMIT(100, __FUNCTION__ << " Error: failed to create index buffer: " << (D3DERR)hr << " Size: " << NewIndexSize);
-		return nullptr;
-	}
+		if (FAILED(hr))
+		{
+			LOG_LIMIT(100, __FUNCTION__ << " Error: failed to create index buffer: " << (D3DERR)hr << " Size: " << IndexCreationSize);
+			return nullptr;
+		}
 
-	if (NewIndexSize > IndexBufferSize)
-	{
-		IndexBufferSize = NewIndexSize;
+		IndexBufferSize = IndexCreationSize;
 	}
 
 	DWORD Flags = D3DLOCK_DISCARD | (Config.DdrawNoDrawBufferSysLock ? D3DLOCK_NOSYSLOCK : NULL);
 
 	void* pData = nullptr;
-	hr = d3d9IndexBuffer->Lock(0, NewIndexSize, &pData, Flags);
+	hr = d3d9IndexBuffer->Lock(0, IndexSize, &pData, Flags);
 
 	if (FAILED(hr) && (Flags & D3DLOCK_NOSYSLOCK))
 	{
-		hr = d3d9IndexBuffer->Lock(0, NewIndexSize, &pData, Flags & ~D3DLOCK_NOSYSLOCK);
+		hr = d3d9IndexBuffer->Lock(0, IndexSize, &pData, Flags & ~D3DLOCK_NOSYSLOCK);
 	}
 
 	if (FAILED(hr))
@@ -3195,7 +3201,7 @@ LPDIRECT3DINDEXBUFFER9 m_IDirectDrawX::GetIndexBufferX(LPWORD lpwIndices, DWORD 
 		return nullptr;
 	}
 
-	memcpy(pData, lpwIndices, NewIndexSize);
+	memcpy(pData, lpwIndices, IndexSize);
 
 	d3d9IndexBuffer->Unlock();
 

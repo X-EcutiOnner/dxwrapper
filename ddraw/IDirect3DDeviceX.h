@@ -48,7 +48,7 @@ private:
 		D3DVIEWPORT9 View = {};
 		D3DVIEWPORT9 FixedView = {};
 		D3DVECTOR Scale = {};
-		D3DVECTOR ClipScale = {};
+		D3DVECTOR Clip = {};
 		bool UseViewportScale = false;
 	};
 	struct MATERIALSTRUCT {

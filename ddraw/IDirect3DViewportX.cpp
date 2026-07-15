@@ -153,10 +153,20 @@ HRESULT m_IDirect3DViewportX::GetViewport(LPD3DVIEWPORT lpData)
 
 	if (Config.Dd7to9)
 	{
-		if (!lpData || lpData->dwSize != sizeof(D3DVIEWPORT))
+		if (!lpData)
 		{
-			LOG_LIMIT(100, __FUNCTION__ << " Error: Incorrect dwSize: " << ((lpData) ? lpData->dwSize : -1));
 			return DDERR_INVALIDPARAMS;
+		}
+
+		if (lpData->dwSize != sizeof(D3DVIEWPORT))
+		{
+			LOG_LIMIT(100, __FUNCTION__ << " Error: Incorrect dwSize: " << lpData->dwSize);
+			return DDERR_INVALIDPARAMS;
+		}
+
+		if (!IsViewportDataSet)
+		{
+			return D3DERR_VIEWPORTDATANOTSET;
 		}
 
 		HRESULT hr = D3DERR_VIEWPORTHASNODEVICE;
@@ -189,14 +199,12 @@ HRESULT m_IDirect3DViewportX::GetViewport(LPD3DVIEWPORT lpData)
 		lpData->dwY = Viewport9.Y;
 		lpData->dwWidth = Viewport9.Width;
 		lpData->dwHeight = Viewport9.Height;
-		lpData->dvMinZ = Viewport9.MinZ;
-		lpData->dvMaxZ = Viewport9.MaxZ;
+		lpData->dvMinZ = Viewport.MinZ;
+		lpData->dvMaxZ = Viewport.MaxZ;
 
 		// Set viewport scale
-		float scaleX = (fabsf(Viewport.Scale.x) > 1e-6f) ? Viewport.Scale.x : 1.0f;
-		float scaleY = (fabsf(Viewport.Scale.y) > 1e-6f) ? Viewport.Scale.y : 1.0f;
-		lpData->dvScaleX = scaleX * (float)lpData->dwWidth / 2.0f;
-		lpData->dvScaleY = scaleY * (float)lpData->dwHeight / 2.0f;
+		lpData->dvScaleX = Viewport.Scale.x * (float)lpData->dwWidth / 2.0f;
+		lpData->dvScaleY = Viewport.Scale.y * (float)lpData->dwHeight / 2.0f;
 		lpData->dvMaxX = 1.0f;
 		lpData->dvMaxY = 1.0f;
 
@@ -212,16 +220,24 @@ HRESULT m_IDirect3DViewportX::SetViewport(LPD3DVIEWPORT lpData)
 
 	if (Config.Dd7to9)
 	{
-		if (!lpData || lpData->dwSize != sizeof(D3DVIEWPORT))
+		if (!lpData)
 		{
-			LOG_LIMIT(100, __FUNCTION__ << " Error: Incorrect dwSize: " << ((lpData) ? lpData->dwSize : -1));
 			return DDERR_INVALIDPARAMS;
 		}
+
+		if (lpData->dwSize != sizeof(D3DVIEWPORT))
+		{
+			LOG_LIMIT(100, __FUNCTION__ << " Error: Incorrect dwSize: " << lpData->dwSize);
+			return DDERR_INVALIDPARAMS;
+		}
+
 		if (lpData->dwWidth == 0 || lpData->dwHeight == 0)
 		{
 			LOG_LIMIT(100, __FUNCTION__ << " Error: Incorrect Width or Height: " << lpData->dwWidth << "x" << lpData->dwHeight);
 			return DDERR_INVALIDPARAMS;
 		}
+
+		IsViewportDataSet = true;
 
 		// The method ignores the values in the dvMaxX, dvMaxY, dvMinZ, and dvMaxZ members.
 
@@ -234,18 +250,13 @@ HRESULT m_IDirect3DViewportX::SetViewport(LPD3DVIEWPORT lpData)
 		Viewport.Data9.MaxZ = 1.0f;
 
 		// MinZ and MaxZ
-		Viewport.MinZ = 0.0f;
-		Viewport.MaxZ = 1.0f;
+		Viewport.MinZ = lpData->dvMinZ;
+		Viewport.MaxZ = lpData->dvMaxZ;
 
 		// Set viewport scale
 		Viewport.Scale.x = 2.0f * lpData->dvScaleX / (float)lpData->dwWidth;
 		Viewport.Scale.y = 2.0f * lpData->dvScaleY / (float)lpData->dwHeight;
 		Viewport.Scale.z = 1.0f;
-
-		// Set viewport clip scale
-		Viewport.ClipScale.x = 0.0f;
-		Viewport.ClipScale.y = 0.0f;
-		Viewport.ClipScale.z = 0.0f;
 
 		// Set viewport clip
 		Viewport.Clip.x = 0.0f;
@@ -638,10 +649,20 @@ HRESULT m_IDirect3DViewportX::GetViewport2(LPD3DVIEWPORT2 lpData)
 
 	if (Config.Dd7to9)
 	{
-		if (!lpData || lpData->dwSize != sizeof(D3DVIEWPORT2))
+		if (!lpData)
 		{
-			LOG_LIMIT(100, __FUNCTION__ << " Error: Incorrect dwSize: " << ((lpData) ? lpData->dwSize : -1));
 			return DDERR_INVALIDPARAMS;
+		}
+
+		if (lpData->dwSize != sizeof(D3DVIEWPORT2))
+		{
+			LOG_LIMIT(100, __FUNCTION__ << " Error: Incorrect dwSize: " << lpData->dwSize);
+			return DDERR_INVALIDPARAMS;
+		}
+
+		if (!IsViewportDataSet)
+		{
+			return D3DERR_VIEWPORTDATANOTSET;
 		}
 
 		HRESULT hr = D3DERR_VIEWPORTHASNODEVICE;
@@ -678,15 +699,12 @@ HRESULT m_IDirect3DViewportX::GetViewport2(LPD3DVIEWPORT2 lpData)
 		lpData->dvMaxZ = Viewport.MaxZ;
 
 		// Set viewport clip
-		float scaleX = (fabsf(Viewport.ClipScale.x) > 1e-6f) ? Viewport.ClipScale.x : 1.0f;
-		float scaleY = (fabsf(Viewport.ClipScale.y) > 1e-6f) ? Viewport.ClipScale.y : 1.0f;
-
-		lpData->dvClipWidth = 2.0f / scaleX;
-		lpData->dvClipHeight = 2.0f / scaleY;
+		lpData->dvClipWidth = 2.0f / Viewport.Scale.x;
+		lpData->dvClipHeight = 2.0f / Viewport.Scale.y;
 
 		// Inverse of SetViewport2 math
-		lpData->dvClipX = -(Viewport.Clip.x + 1.0f) * lpData->dvClipWidth / 2.0f;
-		lpData->dvClipY = (1.0f - Viewport.Clip.y) * lpData->dvClipHeight / 2.0f;
+		lpData->dvClipX = lpData->dvClipWidth * (Viewport.Clip.x + 1.0f) / -2.0f;
+		lpData->dvClipY = lpData->dvClipHeight * (Viewport.Clip.y - 1.0f) / -2.0f;
 
 		return D3D_OK;
 	}
@@ -700,16 +718,24 @@ HRESULT m_IDirect3DViewportX::SetViewport2(LPD3DVIEWPORT2 lpData)
 
 	if (Config.Dd7to9)
 	{
-		if (!lpData || lpData->dwSize != sizeof(D3DVIEWPORT2))
+		if (!lpData)
 		{
-			LOG_LIMIT(100, __FUNCTION__ << " Error: Incorrect dwSize: " << ((lpData) ? lpData->dwSize : -1));
 			return DDERR_INVALIDPARAMS;
 		}
+
+		if (lpData->dwSize != sizeof(D3DVIEWPORT2))
+		{
+			LOG_LIMIT(100, __FUNCTION__ << " Error: Incorrect dwSize: " << lpData->dwSize);
+			return DDERR_INVALIDPARAMS;
+		}
+
 		if (lpData->dwWidth == 0 || lpData->dwHeight == 0)
 		{
 			LOG_LIMIT(100, __FUNCTION__ << " Error: Incorrect Width or Height: " << lpData->dwWidth << "x" << lpData->dwHeight);
 			return DDERR_INVALIDPARAMS;
 		}
+
+		IsViewportDataSet = true;
 
 		// Set standard viewport fields
 		Viewport.Data9.X = lpData->dwX;
@@ -722,29 +748,16 @@ HRESULT m_IDirect3DViewportX::SetViewport2(LPD3DVIEWPORT2 lpData)
 		// MinZ and MaxZ
 		Viewport.MinZ = lpData->dvMinZ;
 		Viewport.MaxZ = lpData->dvMaxZ;
-		if (Viewport.MinZ >= Viewport.MaxZ)
-		{
-			Viewport.MinZ = 0.0f;
-			Viewport.MaxZ = 1.0f;
-		}
 
 		// Set viewport scale
-		Viewport.Scale.x = 0.0f;
-		Viewport.Scale.y = 0.0f;
-		Viewport.Scale.z = 0.0f;
-
-		// Set viewport clip scale
-		float clipWidth = (fabsf(lpData->dvClipWidth) > 1e-6f) ? lpData->dvClipWidth : 2.0f;
-		float clipHeight = (fabsf(lpData->dvClipHeight) > 1e-6f) ? lpData->dvClipHeight : 2.0f;
-
-		Viewport.ClipScale.x = 2.0f / clipWidth;
-		Viewport.ClipScale.y = 2.0f / clipHeight;
-		Viewport.ClipScale.z = 1.0f / (Viewport.MaxZ - Viewport.MinZ);
+		Viewport.Scale.x = 2.0f / lpData->dvClipWidth;
+		Viewport.Scale.y = 2.0f / lpData->dvClipHeight;
+		Viewport.Scale.z = 1.0f / (lpData->dvMaxZ - lpData->dvMinZ);
 
 		// Set viewport clip
-		Viewport.Clip.x = (-2.0f * lpData->dvClipX / clipWidth) - 1.0f;
-		Viewport.Clip.y = (-2.0f * lpData->dvClipY / clipHeight) + 1.0f;
-		Viewport.Clip.z = -Viewport.MinZ / (Viewport.MaxZ - Viewport.MinZ);
+		Viewport.Clip.x = (-2.0f * lpData->dvClipX / lpData->dvClipWidth) - 1.0f;
+		Viewport.Clip.y = (-2.0f * lpData->dvClipY / lpData->dvClipHeight) + 1.0f;
+		Viewport.Clip.z = -lpData->dvMinZ / (lpData->dvMaxZ - lpData->dvMinZ);
 
 		// If current viewport is set then use new viewport
 		SetCurrentViewportActive(true, false, false);

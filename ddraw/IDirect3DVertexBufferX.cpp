@@ -1261,7 +1261,7 @@ HRESULT m_IDirect3DVertexBufferX::TransformVertexUP(m_IDirect3DDeviceX* pDirect3
 		return DDERR_GENERIC;
 	}
 
-	matProj = UpdateProjectionMatrix(matProj, Viewport.Scale, Viewport.ClipScale, (dwFlags & D3DTRANSFORM_CLIPPED));
+	matProj = UpdateProjectionMatrix(matProj, Viewport.Scale, Viewport.Clip, (dwFlags & D3DTRANSFORM_CLIPPED));
 
 	D3DMATRIX matWorldView = {}, matWorldViewProj = {};
 	D3DXMatrixMultiply(&matWorldView, &matWorld, &matView);

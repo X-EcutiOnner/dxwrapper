@@ -571,17 +571,7 @@ HRESULT m_IDirect3DDeviceX::Execute(LPDIRECT3DEXECUTEBUFFER lpDirect3DExecuteBuf
 					D3DMATRIX* pDestMatrix = GetMatrix(matrixMultiply[i].hDestMatrix);
 					if (pSrcMatrix1 && pSrcMatrix2 && pDestMatrix)
 					{
-						using namespace DirectX;
-
-						// Load D3DMATRIX into XMMATRIX
-						XMMATRIX xmMatrix1 = XMLoadFloat4x4(reinterpret_cast<const XMFLOAT4X4*>(pSrcMatrix1));
-						XMMATRIX xmMatrix2 = XMLoadFloat4x4(reinterpret_cast<const XMFLOAT4X4*>(pSrcMatrix2));
-
-						// Perform the multiplication
-						XMMATRIX xmResult = XMMatrixMultiply(xmMatrix1, xmMatrix2);
-
-						// Store the result back into a D3DMATRIX
-						XMStoreFloat4x4(reinterpret_cast<XMFLOAT4X4*>(pDestMatrix), xmResult);
+						D3DXMatrixMultiply(pDestMatrix, pSrcMatrix1, pSrcMatrix2);
 					}
 					else
 					{
@@ -5148,7 +5138,7 @@ HRESULT m_IDirect3DDeviceX::SetViewportData(VIEWPORTINFO& Viewport)
 	{
 		DeviceStates.Viewport.UseViewportScale = true;
 		DeviceStates.Viewport.Scale = Viewport.Scale;
-		DeviceStates.Viewport.ClipScale = Viewport.ClipScale;
+		DeviceStates.Viewport.Clip = Viewport.Clip;
 	}
 
 	return D3D_OK;
@@ -6652,7 +6642,7 @@ D3DMATRIX m_IDirect3DDeviceX::GetUpdatedProjectionMatrix(const D3DMATRIX& Device
 
 	if (DeviceStates.Viewport.UseViewportScale)
 	{
-		result = UpdateProjectionMatrix(DeviceMatrix, DeviceStates.Viewport.Scale, DeviceStates.Viewport.ClipScale, SetClipping);
+		result = UpdateProjectionMatrix(DeviceMatrix, DeviceStates.Viewport.Scale, DeviceStates.Viewport.Clip, SetClipping);
 	}
 
 	return result;
@@ -6693,7 +6683,7 @@ void m_IDirect3DDeviceX::SetDrawStates(DWORD dwVertexTypeDesc, DWORD& dwFlags, D
 		{
 			dwFlags |= D3DDP_DXW_SCALEMATRIX;
 			GetD9Transform(D3DTS_PROJECTION, &DrawStates.ProjectionMatrix);
-			D3DMATRIX Matrix = UpdateProjectionMatrix(DrawStates.ProjectionMatrix, DeviceStates.Viewport.Scale, DeviceStates.Viewport.ClipScale, !(dwFlags & D3DDP_DONOTCLIP));
+			D3DMATRIX Matrix = UpdateProjectionMatrix(DrawStates.ProjectionMatrix, DeviceStates.Viewport.Scale, DeviceStates.Viewport.Clip, !(dwFlags & D3DDP_DONOTCLIP));
 			(*d3d9Device)->SetTransform(D3DTS_PROJECTION, &Matrix);
 		}
 

@@ -16,6 +16,7 @@ private:
 
 	// Convert to Direct3D9
 	m_IDirect3DX* D3DInterface = nullptr;
+	bool IsViewportDataSet = false;
 	VIEWPORTINFO Viewport;
 	m_IDirectDrawSurfaceX* pBackgroundDepthSurfaceX = nullptr;
 

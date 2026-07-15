@@ -317,25 +317,22 @@ bool IsValidTransformState(D3DTRANSFORMSTATETYPE State)
 	}
 }
 
-D3DMATRIX UpdateProjectionMatrix(const D3DMATRIX& Matrix, D3DVECTOR Scale, D3DVECTOR ClipScale, bool SetClipping)
+D3DMATRIX UpdateProjectionMatrix(const D3DMATRIX& Matrix, D3DVECTOR Scale, D3DVECTOR Clip, bool SetClipping)
 {
-	D3DMATRIX result = Matrix;
+	D3DMATRIX ScaleMatrix = {};
 
-	if (Scale.x != 0 && Scale.y != 0 && Scale.z != 0)
-	{
-		result._11 *= Scale.x;
-		result._22 *= Scale.y;
-		result._33 *= Scale.z;
-	}
+	ScaleMatrix._11 = Scale.x;
+	ScaleMatrix._22 = Scale.y;
+	ScaleMatrix._33 = Scale.z;
+	ScaleMatrix._41 = SetClipping ? Clip.x : 0.0f;
+	ScaleMatrix._42 = SetClipping ? Clip.y : 0.0f;
+	ScaleMatrix._43 = SetClipping ? Clip.z : 0.0f;
+	ScaleMatrix._44 = 1.0f;
 
-	if (SetClipping && ClipScale.x != 0 && ClipScale.y != 0 && ClipScale.z != 0)
-	{
-		result._11 *= ClipScale.x;
-		result._22 *= ClipScale.y;
-		result._33 *= ClipScale.z;
-	}
+	D3DMATRIX Result = {};
+	D3DXMatrixMultiply(&Result, &Matrix, &ScaleMatrix);
 
-	return result;
+	return Result;
 }
 
 void ConvertDeviceDesc(D3DDEVICEDESC& Desc, const D3DDEVICEDESC7& Desc7)

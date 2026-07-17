@@ -2787,6 +2787,11 @@ void m_IDirect3DDevice9Ex::LimitFrameRate()
 	Counter.LastPresentTime.QuadPart = TargetEndTicks;
 }
 
+double m_IDirect3DDevice9Ex::GetAverageFPSCounter() const
+{
+	return AverageFPSCounter;
+}
+
 void m_IDirect3DDevice9Ex::CalculateFPS()
 {
 	// Calculate frame time
@@ -2830,7 +2835,7 @@ void m_IDirect3DDevice9Ex::CalculateFPS()
 #endif
 
 	// Output FPS
-	Logging::LogDebug() << "Frames: " << frameTimes.size() << " Average time: " << averageFrameTime << " FPS: " << AverageFPSCounter;
+	Logging::LogDebug() << "m_IDirect3DDevice9Ex::Present" << " (" << this << ")" << " Frames: " << frameTimes.size() << " Average time: " << averageFrameTime << " FPS: " << (DWORD)AverageFPSCounter;
 }
 
 void m_IDirect3DDevice9Ex::DrawFPS(float fps, const RECT& presentRect, DWORD position)

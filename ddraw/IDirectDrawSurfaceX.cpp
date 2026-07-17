@@ -753,7 +753,7 @@ HRESULT m_IDirectDrawSurfaceX::Blt(LPRECT lpDestRect, LPDIRECTDRAWSURFACE7 lpDDS
 			(CopySurfaceFlag ? " CopySurface()" : " ColorFill()") <<
 			" Type = " << lpDDSrcSurfaceX->surface.Type << " " << lpDDSrcSurfaceX->surface.Pool << " -> " << surface.Type << " " << surface.Pool <<
 			" hr = " << (D3DERR)hr <<
-			" Timing = " << Logging::GetTimeLapseInMS(startTime);
+			" Timing = " << Logging::GetTimeLapseInUS(startTime);
 #endif
 
 		// Present surface
@@ -1931,7 +1931,7 @@ HRESULT m_IDirectDrawSurfaceX::GetDC(HDC FAR* lphDC, DWORD MipMapLevel)
 		Logging::Log() << __FUNCTION__ << " (" << this << ")" <<
 			" Type = " << surface.Type << " " << surface.Pool <<
 			" hr = " << (D3DERR)hr <<
-			" Timing = " << Logging::GetTimeLapseInMS(startTime);
+			" Timing = " << Logging::GetTimeLapseInUS(startTime);
 #endif
 
 		return hr;
@@ -2734,7 +2734,7 @@ HRESULT m_IDirectDrawSurfaceX::Lock2(LPRECT lpDestRect, LPDDSURFACEDESC2 lpDDSur
 		Logging::Log() << __FUNCTION__ << " (" << this << ")" <<
 			" Type = " << surface.Type << " " << surface.Pool <<
 			" hr = " << (D3DERR)hr <<
-			" Timing = " << Logging::GetTimeLapseInMS(startTime);
+			" Timing = " << Logging::GetTimeLapseInUS(startTime);
 #endif
 
 		return hr;
@@ -2824,7 +2824,7 @@ HRESULT m_IDirectDrawSurfaceX::ReleaseDC(HDC hDC, DWORD MipMapLevel)
 		} while (false);
 
 #ifdef ENABLE_PROFILING
-		Logging::Log() << __FUNCTION__ << " (" << this << ") hr = " << (D3DERR)hr << " Timing = " << Logging::GetTimeLapseInMS(startTime);
+		Logging::Log() << __FUNCTION__ << " (" << this << ") hr = " << (D3DERR)hr << " Timing = " << Logging::GetTimeLapseInUS(startTime);
 #endif
 		// Present surface
 		if (SUCCEEDED(hr))
@@ -3241,7 +3241,7 @@ HRESULT m_IDirectDrawSurfaceX::Unlock(LPRECT lpRect, DWORD MipMapLevel)
 		} while (false);
 
 #ifdef ENABLE_PROFILING
-		Logging::Log() << __FUNCTION__ << " (" << this << ") hr = " << (D3DERR)hr << " Timing = " << Logging::GetTimeLapseInMS(startTime);
+		Logging::Log() << __FUNCTION__ << " (" << this << ") hr = " << (D3DERR)hr << " Timing = " << Logging::GetTimeLapseInUS(startTime);
 #endif
 
 		// If surface was changed
@@ -4558,6 +4558,10 @@ HRESULT m_IDirectDrawSurfaceX::GenerateMipMapLevels()
 		LOG_LIMIT(100, __FUNCTION__ << " Error: could not get surface level!");
 		return DDERR_GENERIC;
 	}
+
+#ifdef ENABLE_PROFILING
+	Logging::Log() << __FUNCTION__ << " Warning: generating MipMap levels may cause slowdowns!";
+#endif
 
 	for (UINT x = LODLevel ? LODLevel - 1 : 0; x < min(MaxMipMapLevel, MipMaps.size()); x++)
 	{

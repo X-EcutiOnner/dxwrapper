@@ -142,7 +142,6 @@ private:
 	void LimitFrameRate();
 
 	// Frame counter
-	void CalculateFPS();
 	void DrawFPS(float fps, const RECT& presentRect, DWORD position);
 
 	// Gamma
@@ -366,6 +365,10 @@ public:
 	REFIID GetIID() { return WrapperID; }
 	void AddSurfaceToList(m_IDirect3DSurface9* pSurface) { EmulatedSurfaceList.insert(pSurface); }
 	void RemoveSurfaceFromList(m_IDirect3DSurface9* pSurface) { EmulatedSurfaceList.erase(pSurface); }
+
+	// Frame counter
+	void CalculateFPS();
+	double GetAverageFPSCounter() const;
 
 	// Helper functions
 	HRESULT GetFakeFrontBufferData(THIS_ UINT iSwapChain, IDirect3DSurface9* pDestSurface);

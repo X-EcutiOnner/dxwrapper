@@ -54,6 +54,13 @@ public:
 	static void AdjustWindowSize(HMONITOR hMonitor, HWND MainhWnd, LONG displayWidth, LONG displayHeight, bool EnableWindowMode, bool FullscreenWindowMode);
 };
 
+class m_IDirect3DDevice9Ex
+{
+public:
+	void CalculateFPS();
+	double GetAverageFPSCounter() const;
+};
+
 #define DECLARE_IN_WRAPPED_PROC(procName, unused) \
 	const FARPROC procName ## _in = (FARPROC)*d9_ ## procName;
 

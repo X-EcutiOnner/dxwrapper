@@ -720,6 +720,10 @@ void ConvertDeviceDesc(D3DDEVICEDESC7& Desc7, const D3DCAPS9& Caps9)
 
 void ConvertLVertex(DXLVERTEX7* lFVF7, const DXLVERTEX9* lFVF9, DWORD NumVertices)
 {
+#ifdef ENABLE_PROFILING
+	Logging::Log() << __FUNCTION__ << " Warning: converting LVertex may cause slowdowns!";
+#endif
+
 	for (UINT x = 0; x < NumVertices; x++)
 	{
 		lFVF7[x].xyz = lFVF9[x].xyz;
@@ -729,6 +733,10 @@ void ConvertLVertex(DXLVERTEX7* lFVF7, const DXLVERTEX9* lFVF9, DWORD NumVertice
 
 void ConvertLVertex(DXLVERTEX9* lFVF9, const DXLVERTEX7* lFVF7, DWORD NumVertices)
 {
+#ifdef ENABLE_PROFILING
+	Logging::Log() << __FUNCTION__ << " Warning: converting LVertex may cause slowdowns!";
+#endif
+
 	for (UINT x = 0; x < NumVertices; x++)
 	{
 		lFVF9[x].xyz = lFVF7[x].xyz;
@@ -847,6 +855,10 @@ void ClampVerticesX(T* pVertex, DWORD dwNumVertices)
 
 void ClampVertices(BYTE* pVertexData, DWORD Stride, DWORD dwNumVertices)
 {
+#ifdef ENABLE_PROFILING
+	Logging::Log() << __FUNCTION__ << " Warning: clamping vertices may cause slowdowns!";
+#endif
+
 	if (Stride == 16) ClampVerticesX(reinterpret_cast<XYZ_16*>(pVertexData), dwNumVertices);
 	else if (Stride == 20) ClampVerticesX(reinterpret_cast<XYZ_20*>(pVertexData), dwNumVertices);
 	else if (Stride == 24) ClampVerticesX(reinterpret_cast<XYZ_24*>(pVertexData), dwNumVertices);

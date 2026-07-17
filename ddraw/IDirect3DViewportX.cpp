@@ -349,7 +349,7 @@ HRESULT m_IDirect3DViewportX::TransformVertices(DWORD dwVertexCount, LPD3DTRANSF
 		}
 
 #ifdef ENABLE_PROFILING
-		Logging::Log() << __FUNCTION__ << " (" << this << ") hr = " << (D3DERR)D3D_OK << " Timing = " << Logging::GetTimeLapseInMS(startTime);
+		Logging::Log() << __FUNCTION__ << " (" << this << ") hr = " << (D3DERR)D3D_OK << " Timing = " << Logging::GetTimeLapseInUS(startTime);
 #endif
 
 		return hr;

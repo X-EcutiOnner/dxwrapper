@@ -2157,7 +2157,7 @@ HRESULT m_IDirectDrawX::WaitForVerticalBlank(DWORD dwFlags, HANDLE hEvent)
 		}
 
 #ifdef ENABLE_PROFILING
-		Logging::Log() << __FUNCTION__ << " (" << this << ") hr = " << (D3DERR)hr << " Timing = " << Logging::GetTimeLapseInMS(startTime);
+		Logging::Log() << __FUNCTION__ << " (" << this << ") hr = " << (D3DERR)hr << " Timing = " << Logging::GetTimeLapseInUS(startTime);
 #endif
 
 		return hr;
@@ -5404,7 +5404,7 @@ HRESULT m_IDirectDrawX::PresentScene(m_IDirectDrawSurfaceX* pPrimarySurface, REC
 	d3d9Device->EndScene();
 
 #ifdef ENABLE_PROFILING
-	Logging::Log() << __FUNCTION__ << " (" << this << ") hr = " << (D3DERR)hr << " Timing = " << Logging::GetTimeLapseInMS(startTime);
+	Logging::Log() << __FUNCTION__ << " (" << this << ") hr = " << (D3DERR)hr << " Timing = " << Logging::GetTimeLapseInUS(startTime);
 #endif
 
 	// Present to d3d9
@@ -5610,11 +5610,24 @@ HRESULT m_IDirectDrawX::Present(RECT* pSourceRect, RECT* pDestRect)
 	}
 
 #ifdef ENABLE_PROFILING
-	Logging::Log() << __FUNCTION__ << " (" << this << ") hr = " << (D3DERR)hr << " Timing = " << Logging::GetTimeLapseInMS(startTime);
+	Logging::Log() << __FUNCTION__ << " (" << this << ") hr = " << (D3DERR)hr << " Timing = " << Logging::GetTimeLapseInUS(startTime);
 #endif
 
 #ifdef ENABLE_PROFILING
-	Logging::Log() << __FUNCTION__ << " (" << this << ") Full Frame Time = " << Logging::GetTimeLapseInMS(presentTime);
+	m_IDirect3DDevice9Ex* pDirect3DDevice9X = nullptr;
+	if (SUCCEEDED(d3d9Device->QueryInterface(IID_GetInterfaceX, reinterpret_cast<LPVOID*>(&pDirect3DDevice9X))))
+	{
+		if (!Config.ShowFPSCounter)
+		{
+			pDirect3DDevice9X->CalculateFPS();
+		}
+		Logging::Log() << __FUNCTION__ << " (" << this << ") Full Frame Time = " << Logging::GetTimeLapseInMS(presentTime)
+			<< " FPS: " << (DWORD)pDirect3DDevice9X->GetAverageFPSCounter();
+	}
+	else
+	{
+		Logging::Log() << __FUNCTION__ << " (" << this << ") Full Frame Time = " << Logging::GetTimeLapseInMS(presentTime);
+	}
 	presentTime = std::chrono::high_resolution_clock::now();
 #endif
 

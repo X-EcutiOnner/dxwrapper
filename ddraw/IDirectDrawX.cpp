@@ -3484,8 +3484,8 @@ HRESULT m_IDirectDrawX::CreateD9Device(char* FunctionName)
 		" format: " << presParams.BackBufferFormat << " wnd: " << hWnd << " params: " << presParams << " flags: " << Logging::hex(BehaviorFlags);
 
 	// Check if there are any device changes
-	HRESULT hr_test = TestD3D9CooperativeLevel();
-	if ((hr_test == D3D_OK || hr_test == DDERR_NOEXCLUSIVEMODE) &&
+	const HRESULT hr_test = TestD3D9CooperativeLevel();
+	if (d3d9Device && (hr_test == D3D_OK || hr_test == DDERR_NOEXCLUSIVEMODE) &&
 		presParamsBackup.BackBufferWidth == presParams.BackBufferWidth &&
 		presParamsBackup.BackBufferHeight == presParams.BackBufferHeight &&
 		presParamsBackup.Windowed == presParams.Windowed &&

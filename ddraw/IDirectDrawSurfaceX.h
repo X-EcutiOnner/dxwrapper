@@ -550,8 +550,8 @@ public:
 
 	// Direct3D9 interface functions
 	void SetAsRenderTarget();
+	void ReleaseD9Surface(bool BackupData, bool ResetSurface, bool IsDeviceLost);
 	void ReleaseD9AuxiliarySurfaces();
-	void ReleaseD9Surface(bool BackupData, bool ResetSurface);
 	HRESULT PresentSurface(LPRECT lpDestRect, bool IsSkipScene, bool SkipCriticalSection);
 	void ResetSurfaceDisplay();
 	void SetDirtyFlag(DWORD MipMapLevel);
@@ -587,7 +587,10 @@ public:
 	void PrepareRenderTarget();
 	void ClearDirtyFlags();
 	bool CanSurfaceBeLost() const;
+	bool IsSurfaceMarkedAsLost() const { return IsSurfaceLost; }
 	void MarkSurfaceLost();
+	void ClearSurfaceLostFlag();
+	HRESULT RestoreD9Surface();
 	bool GetColorKeyForShader(float(&lowColorKey)[4], float(&highColorKey)[4]);
 	bool GetColorKeyForPrimaryShader(float(&lowColorKey)[4], float(&highColorKey)[4]);
 	bool GetWasBitAlignLocked() const { return WasBitAlignLocked; }

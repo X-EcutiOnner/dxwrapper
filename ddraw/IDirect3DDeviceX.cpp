@@ -395,6 +395,19 @@ HRESULT m_IDirect3DDeviceX::Execute(LPDIRECT3DEXECUTEBUFFER lpDirect3DExecuteBuf
 			return DDERR_INVALIDOBJECT;
 		}
 
+		if (lpCurrentRenderTargetX)
+		{
+			switch (lpCurrentRenderTargetX->IsLost())
+			{
+			case DD_OK:
+				break;
+			case DDERR_SURFACELOST:
+				return DDERR_SURFACELOST;
+			default:
+				return DDERR_WRONGMODE;
+			}
+		}
+
 		// Flags
 		// D3DEXECUTE_CLIPPED - Clip any primitives in the buffer that are outside or partially outside the viewport. 
 		// D3DEXECUTE_UNCLIPPED - All primitives in the buffer are contained within the viewport.
@@ -1363,7 +1376,7 @@ HRESULT m_IDirect3DDeviceX::BeginScene()
 			PrepDevice();
 		}
 
-		return hr;
+		return GetReturnResult(hr);
 	}
 
 	switch (ProxyDirectXVersion)
@@ -1426,7 +1439,7 @@ HRESULT m_IDirect3DDeviceX::EndScene()
 		Logging::Log() << __FUNCTION__ << " (" << this << ") Full Scene Time = " << Logging::GetTimeLapseInMS(sceneTime);
 #endif
 
-		return hr;
+		return GetReturnResult(hr);
 	}
 
 	switch (ProxyDirectXVersion)
@@ -2990,7 +3003,7 @@ HRESULT m_IDirect3DDeviceX::DrawPrimitive(D3DPRIMITIVETYPE dptPrimitiveType, DWO
 		Logging::Log() << __FUNCTION__ << " (" << this << ") hr = " << (D3DERR)hr << " Timing = " << Logging::GetTimeLapseInUS(startTime);
 #endif
 
-		return hr;
+		return GetReturnResult(hr);
 	}
 
 	switch (ProxyDirectXVersion)
@@ -3083,7 +3096,7 @@ HRESULT m_IDirect3DDeviceX::DrawIndexedPrimitive(D3DPRIMITIVETYPE dptPrimitiveTy
 		Logging::Log() << __FUNCTION__ << " (" << this << ") hr = " << (D3DERR)hr << " Timing = " << Logging::GetTimeLapseInUS(startTime);
 #endif
 
-		return hr;
+		return GetReturnResult(hr);
 	}
 
 	switch (ProxyDirectXVersion)
@@ -3289,7 +3302,7 @@ HRESULT m_IDirect3DDeviceX::DrawPrimitiveStrided(D3DPRIMITIVETYPE dptPrimitiveTy
 		Logging::Log() << __FUNCTION__ << " (" << this << ") hr = " << (D3DERR)hr << " Timing = " << Logging::GetTimeLapseInUS(startTime);
 #endif
 
-		return hr;
+		return GetReturnResult(hr);
 	}
 
 	switch (ProxyDirectXVersion)
@@ -3380,7 +3393,7 @@ HRESULT m_IDirect3DDeviceX::DrawIndexedPrimitiveStrided(D3DPRIMITIVETYPE dptPrim
 		Logging::Log() << __FUNCTION__ << " (" << this << ") hr = " << (D3DERR)hr << " Timing = " << Logging::GetTimeLapseInUS(startTime);
 #endif
 
-		return hr;
+		return GetReturnResult(hr);
 	}
 
 	switch (ProxyDirectXVersion)
@@ -3480,7 +3493,7 @@ HRESULT m_IDirect3DDeviceX::DrawPrimitiveVB(D3DPRIMITIVETYPE dptPrimitiveType, L
 		Logging::Log() << __FUNCTION__ << " (" << this << ") hr = " << (D3DERR)hr << " Timing = " << Logging::GetTimeLapseInUS(startTime);
 #endif
 
-		return hr;
+		return GetReturnResult(hr);
 	}
 
 	if (lpd3dVertexBuffer)
@@ -3600,7 +3613,7 @@ HRESULT m_IDirect3DDeviceX::DrawIndexedPrimitiveVB(D3DPRIMITIVETYPE dptPrimitive
 		Logging::Log() << __FUNCTION__ << " (" << this << ") hr = " << (D3DERR)hr << " Timing = " << Logging::GetTimeLapseInUS(startTime);
 #endif
 
-		return hr;
+		return GetReturnResult(hr);
 	}
 
 	if (lpd3dVertexBuffer)
@@ -4030,6 +4043,7 @@ HRESULT m_IDirect3DDeviceX::ValidateDevice(LPDWORD lpdwPasses)
 			hr = D3D_OK;
 			break;
 
+		case D3DERR_DEVICENOTRESET:
 		case D3DERR_DEVICELOST:
 			hr = DDERR_SURFACELOST;
 			break;
@@ -5107,6 +5121,18 @@ HRESULT m_IDirect3DDeviceX::CheckInterface(char *FunctionName, bool CheckD3DDevi
 	return D3D_OK;
 }
 
+HRESULT m_IDirect3DDeviceX::GetReturnResult(HRESULT hr)
+{
+	switch (hr)
+	{
+	case D3DERR_DEVICELOST:
+	case D3DERR_DEVICENOTRESET:
+		return DDERR_SURFACELOST;
+	default:
+		return hr;
+	}
+}
+
 void* m_IDirect3DDeviceX::GetWrapperInterfaceX(DWORD DirectXVersion)
 {
 	switch (DirectXVersion)
@@ -5701,7 +5727,9 @@ HRESULT m_IDirect3DDeviceX::Clear(const D3DVIEWPORT9& Viewport, DWORD dwCount, L
 		}
 	}
 
-	return (*d3d9Device)->Clear(dwCount, lpRects, dwFlags, dwColor, dvZ, dwStencil);
+	HRESULT hr = (*d3d9Device)->Clear(dwCount, lpRects, dwFlags, dwColor, dvZ, dwStencil);
+
+	return GetReturnResult(hr);
 }
 
 void m_IDirect3DDeviceX::ClearViewport(m_IDirect3DViewportX* lpViewportX)

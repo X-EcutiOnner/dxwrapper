@@ -2331,38 +2331,29 @@ HRESULT m_IDirectDrawSurfaceX::IsLost()
 
 	if (Config.Dd7to9)
 	{
-		// Check device interface
-		if ((surfaceDesc2.ddsCaps.dwCaps & DDSCAPS_VIDEOMEMORY) || IsD9UsingVideoMemory())
+		if (IsSurfaceMarkedAsLost())
 		{
-			// Check for device interface
-			HRESULT c_hr = CheckInterface(__FUNCTION__, false, false, false);
-			if (FAILED(c_hr))
-			{
-				return c_hr;
-			}
+			return DDERR_SURFACELOST;
+		}
 
-			switch (ddrawParent->TestD3D9CooperativeLevel())
-			{
-			case D3D_OK:
-			case DDERR_NOEXCLUSIVEMODE:
-				if (IsSurfaceLost)
-				{
-					return DDERR_SURFACELOST;
-				}
-				return DD_OK;
-			case D3DERR_DEVICELOST:
-				MarkSurfaceLost();
-				return DD_OK;		// Native DriectDraw returns ok here, until surface is ready to be reset
-			case D3DERR_DEVICENOTRESET:
-				MarkSurfaceLost();
-				if (IsSurfaceLost)
-				{
-					return DDERR_SURFACELOST;
-				}
-				[[fallthrough]];
-			default:
-				return DDERR_WRONGMODE;
-			}
+		// Check for device interface
+		HRESULT c_hr = CheckInterface(__FUNCTION__, false, false, false);
+		if (FAILED(c_hr))
+		{
+			return c_hr;
+		}
+
+		switch (ddrawParent->TestD3D9CooperativeLevel())
+		{
+		case D3D_OK:
+		case DDERR_NOEXCLUSIVEMODE:
+			return DD_OK;
+		case D3DERR_DEVICELOST:
+		case D3DERR_DEVICENOTRESET:
+			MarkSurfaceLost();
+			return DDERR_SURFACELOST;
+		default:
+			return DDERR_WRONGMODE;
 		}
 
 		return DD_OK;
@@ -2844,6 +2835,11 @@ HRESULT m_IDirectDrawSurfaceX::Restore()
 
 	if (Config.Dd7to9)
 	{
+		if (ComplexChild)
+		{
+			return DDERR_IMPLICITLYCREATED;
+		}
+
 		// Check for device interface
 		HRESULT c_hr = CheckInterface(__FUNCTION__, false, false, false);
 		if (FAILED(c_hr))
@@ -2851,7 +2847,7 @@ HRESULT m_IDirectDrawSurfaceX::Restore()
 			return c_hr;
 		}
 
-		// ToDo: A single call to this method will restore a DirectDrawSurface object's associated implicit surfaces (back buffers, and so on). 
+		// A single call to this method will restore a DirectDrawSurface object's associated implicit surfaces (back buffers, and so on). 
 
 		switch (ddrawParent->TestD3D9CooperativeLevel())
 		{
@@ -2867,9 +2863,10 @@ HRESULT m_IDirectDrawSurfaceX::Restore()
 			{
 				return DDERR_WRONGMODE;
 			}
-			IsSurfaceLost = false;
+			ClearSurfaceLostFlag();
 			return DD_OK;
 		case D3DERR_DEVICELOST:
+			return DDERR_NOEXCLUSIVEMODE;
 		default:
 			return DDERR_WRONGMODE;
 		}
@@ -4009,7 +4006,7 @@ void m_IDirectDrawSurfaceX::ReleaseInterface()
 
 	if (Config.Dd7to9)
 	{
-		ReleaseD9Surface(false, false);
+		ReleaseD9Surface(false, false, false);
 	}
 
 	// Clean up mipmaps
@@ -4137,19 +4134,20 @@ HRESULT m_IDirectDrawSurfaceX::CheckLostInterface(char* FunctionName)
 		case DDERR_NOEXCLUSIVEMODE:
 			break;
 		case D3DERR_DEVICENOTRESET:
-			if (SUCCEEDED(ddrawParent->ResetD9Device()))
+			if (FAILED(ddrawParent->ResetD9Device()))
 			{
-				break;
+				return DDERR_WRONGMODE;
 			}
 			[[fallthrough]];
 		case D3DERR_DEVICELOST:
-			return DDERR_SURFACELOST;
+			MarkSurfaceLost();
+			break;
 		default:
 			LOG_LIMIT(100, FunctionName << " Error: TestCooperativeLevel = " << (D3DERR)hr);
 			return DDERR_WRONGMODE;
 		}
 
-		if (IsSurfaceLost && !LostDeviceBackup.empty())
+		if (IsSurfaceMarkedAsLost() && !LostDeviceBackup.empty())
 		{
 			LOG_LIMIT(100, FunctionName << " Warning: surface is lost and there is no backup for it!");
 			return DDERR_SURFACELOST;
@@ -4641,7 +4639,7 @@ HRESULT m_IDirectDrawSurfaceX::CreateD9Surface()
 	ScopedCriticalSection ThreadLock(GetCriticalSection());
 
 	// Release existing surface
-	ReleaseD9Surface(true, false);
+	ReleaseD9Surface(true, false, false);
 
 	// Update surface description
 	UpdateSurfaceDesc();
@@ -5420,7 +5418,7 @@ void m_IDirectDrawSurfaceX::UpdateAttachedDepthStencil(m_IDirectDrawSurfaceX* lp
 	// If depth stencil changed
 	if (HasChanged)
 	{
-		lpAttachedSurfaceX->ReleaseD9Surface(false, false);
+		lpAttachedSurfaceX->ReleaseD9Surface(false, false, false);
 	}
 	// Set depth stencil
 	if (ddrawParent->GetRenderTargetSurface() == this)
@@ -5533,7 +5531,7 @@ void m_IDirectDrawSurfaceX::UpdateSurfaceDesc()
 			surfaceDesc2.dwHeight != lpAttachedSurfaceX->surfaceDesc2.dwHeight ||
 			(lpAttachedSurfaceX->surfaceDesc2.ddsCaps.dwCaps & DDSCAPS_SYSTEMMEMORY)))
 		{
-			lpAttachedSurfaceX->ReleaseD9Surface(false, false);
+			lpAttachedSurfaceX->ReleaseD9Surface(false, false, false);
 			lpAttachedSurfaceX->surfaceDesc2.dwWidth = surfaceDesc2.dwWidth;
 			lpAttachedSurfaceX->surfaceDesc2.dwHeight = surfaceDesc2.dwHeight;
 			lpAttachedSurfaceX->surfaceDesc2.ddsCaps.dwCaps = (lpAttachedSurfaceX->surfaceDesc2.ddsCaps.dwCaps & ~DDSCAPS_SYSTEMMEMORY) | DDSCAPS_VIDEOMEMORY | DDSCAPS_LOCALVIDMEM;
@@ -5605,6 +5603,175 @@ void m_IDirectDrawSurfaceX::ClearUsing3DFlag()
 				}
 			}
 		}
+	}
+}
+
+void m_IDirectDrawSurfaceX::ReleaseD9Surface(bool BackupData, bool ResetSurface, bool IsDeviceLost)
+{
+	ScopedCriticalSection ThreadLock(GetCriticalSection(), Config.Dd7to9);
+
+	// Check if surface is busy
+	if (IsSurfaceBusy())
+	{
+		Logging::Log() << __FUNCTION__ << " Warning: surface still in use! Locked: " << IsSurfaceLocked() << " DC: " << IsSurfaceInDC() << " Blt: " << IsSurfaceBlitting();
+	}
+
+	// Release DC levels (before releasing surface)
+	for (auto& entry : GetDCLevel)
+	{
+		if (entry.second)
+		{
+			ReleaseDC(entry.second, entry.first);
+			entry.second = nullptr;
+		}
+	}
+
+	// Restore DC
+	UnsetEmulationGameDC();
+
+	// Unlock surface (before releasing)
+	for (auto& entry : LockedLevel)
+	{
+		if (entry.second.IsLocked)
+		{
+			UnLockD3d9Surface(entry.first);
+			entry.second.IsLocked = false;
+			entry.second.LockedWithID = 0;
+			entry.second.LockRectList.clear();
+		}
+	}
+
+	IsInBlt = false;
+	IsInBltBatch = false;
+	LockedLevel[0].IsLocked = false;
+	GetDCLevel[0] = nullptr;
+	IsInFlip = false;
+
+	// Mark content of surface changed
+	if (surfaceDesc2.ddsCaps.dwCaps & (DDSCAPS_VIDEOMEMORY | DDSCAPS_LOCALVIDMEM))
+	{
+		for (UINT x = 0; x < MaxMipMapLevel + 1; x++)
+		{
+			// Expire volitile private data
+			ExpireVolatilePrivateData(x);
+
+			// Update Uniqueness Value
+			ChangeUniquenessValue(x);
+		}
+	}
+
+	if (IsDeviceLost)
+	{
+		MarkSurfaceLost();
+	}
+
+	const bool ShouldReleaseMainSurface = (!ResetSurface || IsD9UsingVideoMemory());
+
+	// Backup d3d9 surface texture
+	if (BackupData)
+	{
+		if ((surface.Surface || surface.Texture) &&
+			surface.HasData && ShouldReleaseMainSurface &&
+			!(IsDepthStencil() || (surface.Usage & D3DUSAGE_DEPTHSTENCIL)))
+		{
+			if (!IsUsingEmulation() && LostDeviceBackup.empty())
+			{
+				for (UINT Level = 0; Level < ((IsMipMapAutogen() || !MaxMipMapLevel) ? 1 : MaxMipMapLevel); Level++)
+				{
+					// Check if render target should use shadow
+					if (ShouldUseShadowSurface(Level, false))
+					{
+						SetRenderTargetShadow();
+					}
+
+					D3DLOCKED_RECT LockRect = {};
+					if (FAILED(LockD3d9Surface(&LockRect, nullptr, D3DLOCK_READONLY, Level)))
+					{
+						LOG_LIMIT(100, __FUNCTION__ << " Error: failed to backup surface data!");
+						break;
+					}
+
+					D3DSURFACE_DESC Desc = {};
+					if (FAILED(surface.Surface ? surface.Surface->GetDesc(&Desc) : surface.Texture->GetLevelDesc(GetD9MipMapLevel(Level), &Desc)))
+					{
+						LOG_LIMIT(100, __FUNCTION__ << " Error: failed to get surface desc!");
+						break;
+					}
+
+					Logging::LogDebug() << __FUNCTION__ << " Storing Direct3D9 texture surface data: " << Desc.Format;
+
+					size_t size = GetSurfaceSize(Desc.Format, Desc.Width, Desc.Height, LockRect.Pitch);
+
+					DDBACKUP entry;
+					LostDeviceBackup.push_back(entry);
+					if (size && LockRect.pBits && LostDeviceBackup.size() > Level)
+					{
+						LostDeviceBackup[Level].Format = Desc.Format;
+						LostDeviceBackup[Level].Width = Desc.Width;
+						LostDeviceBackup[Level].Height = Desc.Height;
+						LostDeviceBackup[Level].Pitch = LockRect.Pitch;
+						LostDeviceBackup[Level].Bits.resize(size);
+
+						memcpy(LostDeviceBackup[Level].Bits.data(), LockRect.pBits, size);
+					}
+					else
+					{
+						LOG_LIMIT(100, __FUNCTION__ << " Error: mismatch in LostDeviceBackup data structure!");
+					}
+
+					UnLockD3d9Surface(Level);
+				}
+			}
+		}
+	}
+	// Release emulated surface if not backing up surface
+	else if (IsUsingEmulation())
+	{
+		ReleaseDCSurface();
+	}
+
+	// Check if surface is render target or  depth stencil
+	if (ddrawParent &&
+		(ddrawParent->GetRenderTargetSurface() == this || ddrawParent->GetDepthStencilSurface() == this))
+	{
+		ddrawParent->ClearRenderTarget();
+	}
+
+	ReleaseD9AuxiliarySurfaces();
+
+	// Release d3d9 3D surface
+	if (surface.Surface && ShouldReleaseMainSurface)
+	{
+		Logging::LogDebug() << __FUNCTION__ << " Releasing Direct3D9 surface";
+		ULONG ref = surface.Surface->Release();
+		if (ref)
+		{
+			Logging::Log() << __FUNCTION__ << " Error: there is still a reference to 'surface3D' " << ref;
+		}
+		surface.Surface = nullptr;
+	}
+
+	// Release d3d9 surface texture
+	if (surface.Texture && ShouldReleaseMainSurface)
+	{
+		Logging::LogDebug() << __FUNCTION__ << " Releasing Direct3D9 texture surface";
+		ULONG ref = surface.Texture->Release();
+		if (ref)
+		{
+			Logging::Log() << __FUNCTION__ << " Error: there is still a reference to 'surfaceTexture' " << ref;
+		}
+		surface.Texture = nullptr;
+	}
+
+	// Reset display flags
+	if (ResetDisplayFlags && !ResetSurface)
+	{
+		ShouldResetDisplayFlags = true;
+	}
+
+	if (surfaceDesc2.dwFlags & DDSD_REFRESHRATE)
+	{
+		surfaceDesc2.dwRefreshRate = 0;
 	}
 }
 
@@ -5723,170 +5890,6 @@ void m_IDirectDrawSurfaceX::ReleaseD9AuxiliarySurfaces()
 	surface.RecreateAuxiliarySurfaces = true;
 }
 
-void m_IDirectDrawSurfaceX::ReleaseD9Surface(bool BackupData, bool ResetSurface)
-{
-	ScopedCriticalSection ThreadLock(GetCriticalSection(), Config.Dd7to9);
-
-	// Check if surface is busy
-	if (IsSurfaceBusy())
-	{
-		Logging::Log() << __FUNCTION__ << " Warning: surface still in use! Locked: " << IsSurfaceLocked() << " DC: " << IsSurfaceInDC() << " Blt: " << IsSurfaceBlitting();
-	}
-
-	// Release DC levels (before releasing surface)
-	for (auto& entry : GetDCLevel)
-	{
-		if (entry.second)
-		{
-			ReleaseDC(entry.second, entry.first);
-			entry.second = nullptr;
-		}
-	}
-
-	// Restore DC
-	UnsetEmulationGameDC();
-
-	// Unlock surface (before releasing)
-	for (auto& entry : LockedLevel)
-	{
-		if (entry.second.IsLocked)
-		{
-			UnLockD3d9Surface(entry.first);
-			entry.second.IsLocked = false;
-			entry.second.LockedWithID = 0;
-			entry.second.LockRectList.clear();
-		}
-	}
-
-	IsInBlt = false;
-	IsInBltBatch = false;
-	LockedLevel[0].IsLocked = false;
-	GetDCLevel[0] = nullptr;
-	IsInFlip = false;
-
-	// Mark content of surface changed
-	if (surfaceDesc2.ddsCaps.dwCaps & (DDSCAPS_VIDEOMEMORY | DDSCAPS_LOCALVIDMEM))
-	{
-		for (UINT x = 0; x < MaxMipMapLevel + 1; x++)
-		{
-			// Expire volitile private data
-			ExpireVolatilePrivateData(x);
-
-			// Update Uniqueness Value
-			ChangeUniquenessValue(x);
-		}
-	}
-
-	const bool ShouldReleaseMainSurface = (!ResetSurface || IsD9UsingVideoMemory());
-
-	// Backup d3d9 surface texture
-	if (BackupData)
-	{
-		if ((surface.Surface || surface.Texture) &&
-			surface.HasData && ShouldReleaseMainSurface &&
-			!(IsDepthStencil() || (surface.Usage & D3DUSAGE_DEPTHSTENCIL)))
-		{
-			if (!IsUsingEmulation() && LostDeviceBackup.empty())
-			{
-				for (UINT Level = 0; Level < ((IsMipMapAutogen() || !MaxMipMapLevel) ? 1 : MaxMipMapLevel); Level++)
-				{
-					// Check if render target should use shadow
-					if (ShouldUseShadowSurface(Level, false))
-					{
-						SetRenderTargetShadow();
-					}
-
-					D3DLOCKED_RECT LockRect = {};
-					if (FAILED(LockD3d9Surface(&LockRect, nullptr, D3DLOCK_READONLY, Level)))
-					{
-						LOG_LIMIT(100, __FUNCTION__ << " Error: failed to backup surface data!");
-						break;
-					}
-
-					D3DSURFACE_DESC Desc = {};
-					if (FAILED(surface.Surface ? surface.Surface->GetDesc(&Desc) : surface.Texture->GetLevelDesc(GetD9MipMapLevel(Level), &Desc)))
-					{
-						LOG_LIMIT(100, __FUNCTION__ << " Error: failed to get surface desc!");
-						break;
-					}
-
-					Logging::LogDebug() << __FUNCTION__ << " Storing Direct3D9 texture surface data: " << Desc.Format;
-
-					size_t size = GetSurfaceSize(Desc.Format, Desc.Width, Desc.Height, LockRect.Pitch);
-
-					DDBACKUP entry;
-					LostDeviceBackup.push_back(entry);
-					if (size && LockRect.pBits && LostDeviceBackup.size() > Level)
-					{
-						LostDeviceBackup[Level].Format = Desc.Format;
-						LostDeviceBackup[Level].Width = Desc.Width;
-						LostDeviceBackup[Level].Height = Desc.Height;
-						LostDeviceBackup[Level].Pitch = LockRect.Pitch;
-						LostDeviceBackup[Level].Bits.resize(size);
-
-						memcpy(LostDeviceBackup[Level].Bits.data(), LockRect.pBits, size);
-					}
-					else
-					{
-						LOG_LIMIT(100, __FUNCTION__ << " Error: mismatch in LostDeviceBackup data structure!");
-					}
-
-					UnLockD3d9Surface(Level);
-				}
-			}
-		}
-	}
-	// Release emulated surface if not backing up surface
-	else if (IsUsingEmulation())
-	{
-		ReleaseDCSurface();
-	}
-
-	// Check if surface is render target or  depth stencil
-	if (ddrawParent &&
-		(ddrawParent->GetRenderTargetSurface() == this || ddrawParent->GetDepthStencilSurface() == this))
-	{
-		ddrawParent->ClearRenderTarget();
-	}
-
-	ReleaseD9AuxiliarySurfaces();
-
-	// Release d3d9 3D surface
-	if (surface.Surface && ShouldReleaseMainSurface)
-	{
-		Logging::LogDebug() << __FUNCTION__ << " Releasing Direct3D9 surface";
-		ULONG ref = surface.Surface->Release();
-		if (ref)
-		{
-			Logging::Log() << __FUNCTION__ << " Error: there is still a reference to 'surface3D' " << ref;
-		}
-		surface.Surface = nullptr;
-	}
-
-	// Release d3d9 surface texture
-	if (surface.Texture && ShouldReleaseMainSurface)
-	{
-		Logging::LogDebug() << __FUNCTION__ << " Releasing Direct3D9 texture surface";
-		ULONG ref = surface.Texture->Release();
-		if (ref)
-		{
-			Logging::Log() << __FUNCTION__ << " Error: there is still a reference to 'surfaceTexture' " << ref;
-		}
-		surface.Texture = nullptr;
-	}
-
-	// Reset display flags
-	if (ResetDisplayFlags && !ResetSurface)
-	{
-		ShouldResetDisplayFlags = true;
-	}
-
-	if (surfaceDesc2.dwFlags & DDSD_REFRESHRATE)
-	{
-		surfaceDesc2.dwRefreshRate = 0;
-	}
-}
-
 void m_IDirectDrawSurfaceX::ReleaseDCSurface()
 {
 	if (surface.emu)
@@ -5969,7 +5972,7 @@ void m_IDirectDrawSurfaceX::ResetSurfaceDisplay()
 {
 	if (ResetDisplayFlags)
 	{
-		ReleaseD9Surface(true, false);
+		ReleaseD9Surface(true, false, false);
 	}
 }
 
@@ -6474,12 +6477,9 @@ void m_IDirectDrawSurfaceX::ClearDirtyFlags()
 
 bool m_IDirectDrawSurfaceX::CanSurfaceBeLost() const
 {
-	if ((surfaceDesc2.ddsCaps.dwCaps & DDSCAPS_VIDEOMEMORY) && !IsSurfaceManaged() && IsD9UsingVideoMemory())
+	if ((surfaceDesc2.ddsCaps.dwCaps & (DDSCAPS_VIDEOMEMORY | DDSCAPS_LOCALVIDMEM)) && !(surfaceDesc2.ddsCaps.dwCaps & DDSCAPS_SYSTEMMEMORY))
 	{
-		if (!ComplexChild)	// Complex children don't get surface lost notice
-		{
-			return true;
-		}
+		return true;
 	}
 	return false;
 }
@@ -6490,6 +6490,48 @@ void m_IDirectDrawSurfaceX::MarkSurfaceLost()
 	{
 		IsSurfaceLost = true;
 	}
+}
+
+void m_IDirectDrawSurfaceX::ClearSurfaceLostFlag()
+{
+	IsSurfaceLost = false;
+
+	if (ComplexRoot)
+	{
+		m_IDirectDrawSurfaceX* lpTargetSurface = this;
+		do {
+			// Loop through each child surface
+			m_IDirectDrawSurfaceX* lpLastTargetSurface = lpTargetSurface;
+			for (const auto& it : lpTargetSurface->AttachedSurfaceMap)
+			{
+				if (it.second.pSurface->ComplexChild)
+				{
+					it.second.pSurface->IsSurfaceLost = false;
+					lpTargetSurface = it.second.pSurface;
+					break;
+				}
+			}
+
+			// Stop looping when no more children are found
+			if (!lpTargetSurface || lpTargetSurface == lpLastTargetSurface)
+			{
+				break;
+			}
+
+		} while (true);
+	}
+}
+
+HRESULT m_IDirectDrawSurfaceX::RestoreD9Surface()
+{
+	if (FAILED(CheckInterface(__FUNCTION__, true, true, false)))
+	{
+		return DDERR_WRONGMODE;
+	}
+
+	ClearSurfaceLostFlag();
+
+	return DD_OK;
 }
 
 bool m_IDirectDrawSurfaceX::CheckRectforSkipScene(RECT& DestRect)

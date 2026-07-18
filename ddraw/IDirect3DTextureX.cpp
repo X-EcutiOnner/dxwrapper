@@ -255,6 +255,11 @@ HRESULT m_IDirect3DTextureX::Load(LPDIRECT3DTEXTURE2 lpD3DTexture2)
 			return DDERR_GENERIC;
 		}
 
+		if (parent3DSurface.Interface->IsSurfaceMarkedAsLost())
+		{
+			return DDERR_SURFACELOST;
+		}
+
 		m_IDirect3DTextureX* pSrcTextureX = nullptr;
 		lpD3DTexture2->QueryInterface(IID_GetInterfaceX, (LPVOID*)&pSrcTextureX);
 

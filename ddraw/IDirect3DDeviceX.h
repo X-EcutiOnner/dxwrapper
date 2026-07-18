@@ -255,6 +255,7 @@ private:
 
 	// Helper functions
 	HRESULT CheckInterface(char* FunctionName, bool CheckD3DDevice);
+	HRESULT GetReturnResult(HRESULT hr);
 
 	// Execute buffer function
 	void CopyConvertExecuteVertex(BYTE*& DestVertex, DWORD& DestVertexCount, BYTE* SrcVertex, DWORD SrcIndex, DWORD VertexTypeDesc);

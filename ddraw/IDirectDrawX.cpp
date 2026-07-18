@@ -2315,16 +2315,24 @@ HRESULT m_IDirectDrawX::RestoreAllSurfaces()
 
 		// Check device state
 		HRESULT hr = TestD3D9CooperativeLevel();
-		if (hr == D3DERR_DEVICENOTRESET)
+		switch (hr)
 		{
-			ScopedCriticalSection ThreadLockDD(DdrawWrapper::GetDDCriticalSection());
 
-			hr = ResetD9Device();
-		}
+		case D3DERR_DEVICELOST:
+			return DDERR_NOEXCLUSIVEMODE;
 
-		// Check device status
-		if (hr == DD_OK || hr == DDERR_NOEXCLUSIVEMODE)
-		{
+		case D3DERR_DEVICENOTRESET:
+			if (d3d9Device)
+			{
+				ScopedCriticalSection ThreadLockDD(DdrawWrapper::GetDDCriticalSection());
+				if (FAILED(ResetD9Device()))
+				{
+					return DDERR_WRONGMODE;
+				}
+			}
+			[[fallthrough]];
+		case DD_OK:
+		case DDERR_NOEXCLUSIVEMODE:
 			// Recreate device, if needed
 			if (!d3d9Device)
 			{
@@ -2336,7 +2344,11 @@ HRESULT m_IDirectDrawX::RestoreAllSurfaces()
 			{
 				for (const auto& pSurface : pDDraw->SurfaceList)
 				{
-					pSurface.Interface->Restore();
+					HRESULT s_hr = pSurface.Interface->RestoreD9Surface();
+					if (FAILED(s_hr))
+					{
+						return s_hr;
+					}
 				}
 			}
 		}
@@ -2359,10 +2371,10 @@ HRESULT m_IDirectDrawX::TestCooperativeLevel()
 		case D3DERR_DRIVERINTERNALERROR:
 			return DDERR_WRONGMODE;
 		case D3DERR_DEVICELOST:
-			// Documentation: Full-screen applications receive the DDERR_NOEXCLUSIVEMODE return value if they lose exclusive device access
-			// Need to send DD_OK to prevent application hang on minimize
+			// Full-screen applications receive the DDERR_NOEXCLUSIVEMODE return value if they lose exclusive device access
+			return DDERR_NOEXCLUSIVEMODE;
 		case D3DERR_DEVICENOTRESET:
-			//The TestCooperativeLevel method succeeds, returning DD_OK, if your application can restore its surfaces
+			// The TestCooperativeLevel method succeeds, returning DD_OK, if your application can restore its surfaces
 		case DDERR_NOEXCLUSIVEMODE:
 		case D3D_OK:
 		default:
@@ -2721,7 +2733,7 @@ void m_IDirectDrawX::ReleaseInterface()
 	// Release surfaces
 	for (const auto& pSurface : SurfaceList)
 	{
-		pSurface.Interface->ReleaseD9Surface(false, false);
+		pSurface.Interface->ReleaseD9Surface(false, false, IsDeviceLost);
 		pSurface.Interface->ClearDdraw();
 	}
 	SurfaceList.clear();
@@ -3487,20 +3499,16 @@ HRESULT m_IDirectDrawX::CreateD9Device(char* FunctionName)
 		" format: " << presParams.BackBufferFormat << " wnd: " << hWnd << " params: " << presParams << " flags: " << Logging::hex(BehaviorFlags);
 
 	// Check if there are any device changes
-	HRESULT hr_test = D3D_OK;
-	if (d3d9Device)
+	HRESULT hr_test = TestD3D9CooperativeLevel();
+	if ((hr_test == D3D_OK || hr_test == DDERR_NOEXCLUSIVEMODE) &&
+		presParamsBackup.BackBufferWidth == presParams.BackBufferWidth &&
+		presParamsBackup.BackBufferHeight == presParams.BackBufferHeight &&
+		presParamsBackup.Windowed == presParams.Windowed &&
+		presParamsBackup.hDeviceWindow == presParams.hDeviceWindow &&
+		presParamsBackup.FullScreen_RefreshRateInHz == presParams.FullScreen_RefreshRateInHz &&
+		LastBehaviorFlags == BehaviorFlags)
 	{
-		hr_test = TestD3D9CooperativeLevel();
-		if ((hr_test == D3D_OK || hr_test == DDERR_NOEXCLUSIVEMODE) &&
-			presParamsBackup.BackBufferWidth == presParams.BackBufferWidth &&
-			presParamsBackup.BackBufferHeight == presParams.BackBufferHeight &&
-			presParamsBackup.Windowed == presParams.Windowed &&
-			presParamsBackup.hDeviceWindow == presParams.hDeviceWindow &&
-			presParamsBackup.FullScreen_RefreshRateInHz == presParams.FullScreen_RefreshRateInHz &&
-			LastBehaviorFlags == BehaviorFlags)
-		{
-			return DD_OK;
-		}
+		return DD_OK;
 	}
 
 	// Mark as creating device
@@ -3734,7 +3742,7 @@ HRESULT m_IDirectDrawX::ResetD9Device()
 	if (SUCCEEDED(hr) || hr == DDERR_NOEXCLUSIVEMODE)
 	{
 		WndProc::SwitchingResolution = false;
-		return hr;
+		return DD_OK;
 	}
 	else if (hr == D3DERR_DEVICELOST)
 	{
@@ -4156,6 +4164,10 @@ HRESULT m_IDirectDrawX::TestD3D9CooperativeLevel()
 		{
 			IsDeviceLost = false;
 			WndProc::SwitchingResolution = false;
+			if (ExclusiveMode)
+			{
+				return DD_OK;
+			}
 		}
 
 		return hr;
@@ -4344,7 +4356,7 @@ void m_IDirectDrawX::ReleaseAllD9Resources(bool BackupData, bool ResetInterface)
 	{
 		for (const auto& pSurface : pDDraw->SurfaceList)
 		{
-			pSurface.Interface->ReleaseD9Surface(BackupData, ResetInterface);
+			pSurface.Interface->ReleaseD9Surface(BackupData, ResetInterface, IsDeviceLost);
 		}
 		for (const auto& pSurface : pDDraw->ReleasedSurfaceList)
 		{

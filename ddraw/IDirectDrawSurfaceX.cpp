@@ -2355,8 +2355,6 @@ HRESULT m_IDirectDrawSurfaceX::IsLost()
 		default:
 			return DDERR_WRONGMODE;
 		}
-
-		return DD_OK;
 	}
 
 	return ProxyInterface->IsLost();

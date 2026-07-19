@@ -2268,7 +2268,7 @@ HRESULT m_IDirectDrawSurfaceX::GetSurfaceDesc2(LPDDSURFACEDESC2 lpDDSurfaceDesc2
 		// Handle managed texture memory type
 		if ((lpDDSurfaceDesc2->ddsCaps.dwCaps & DDSCAPS_TEXTURE) && (lpDDSurfaceDesc2->ddsCaps.dwCaps2 & DDSCAPS2_TEXTUREMANAGE))
 		{
-			lpDDSurfaceDesc2->ddsCaps.dwCaps = (lpDDSurfaceDesc2->ddsCaps.dwCaps & ~(DDSCAPS_LOCALVIDMEM | DDSCAPS_VIDEOMEMORY)) | DDSCAPS_SYSTEMMEMORY;
+			lpDDSurfaceDesc2->ddsCaps.dwCaps = (lpDDSurfaceDesc2->ddsCaps.dwCaps & ~(DDSCAPS_VIDEOMEMORY | DDSCAPS_LOCALVIDMEM)) | DDSCAPS_SYSTEMMEMORY;
 		}
 
 		// Return
@@ -2331,6 +2331,11 @@ HRESULT m_IDirectDrawSurfaceX::IsLost()
 
 	if (Config.Dd7to9)
 	{
+		if (!CanSurfaceBeLost())
+		{
+			return D3D_OK;
+		}
+
 		if (IsSurfaceMarkedAsLost())
 		{
 			return DDERR_SURFACELOST;
@@ -4656,10 +4661,10 @@ HRESULT m_IDirectDrawSurfaceX::CreateD9Surface()
 	const D3DFORMAT Format = ((surfaceDesc2.ddsCaps.dwCaps2 & DDSCAPS2_NOTUSERLOCKABLE) && surface.Format == D3DFMT_D16_LOCKABLE) ? D3DFMT_D16 : ConvertSurfaceFormat(surface.Format);
 
 	// Check if surface should be a texture
-	bool IsTexture = ((IsPrimaryOrBackBuffer() && !ShouldPresentToWindow(false)) || IsPalette() || IsSurfaceTexture());
+	const bool IsTexture = ((IsPrimaryOrBackBuffer() && !ShouldPresentToWindow(false)) || IsPalette() || IsSurfaceTexture());
 
 	// Get memory pool
-	bool UseVideoMemory = IsRenderTarget() || IsDepthStencil();
+	const bool UseVideoMemory = IsRenderTarget() || IsDepthStencil();
 	surface.Pool = (IsPrimaryOrBackBuffer() && ShouldPresentToWindow(false)) ? D3DPOOL_SYSTEMMEM :
 		IsSurfaceManaged() ? D3DPOOL_MANAGED :
 		UseVideoMemory ? (((surfaceDesc2.ddsCaps.dwCaps & DDSCAPS_VIDEOMEMORY) || IsPrimaryOrBackBuffer()) ? D3DPOOL_DEFAULT :
@@ -5646,7 +5651,7 @@ void m_IDirectDrawSurfaceX::ReleaseD9Surface(bool BackupData, bool ResetSurface,
 	IsInFlip = false;
 
 	// Mark content of surface changed
-	if (surfaceDesc2.ddsCaps.dwCaps & (DDSCAPS_VIDEOMEMORY | DDSCAPS_LOCALVIDMEM))
+	if (CanSurfaceBeLost())
 	{
 		for (UINT x = 0; x < MaxMipMapLevel + 1; x++)
 		{
@@ -6475,7 +6480,7 @@ void m_IDirectDrawSurfaceX::ClearDirtyFlags()
 
 bool m_IDirectDrawSurfaceX::CanSurfaceBeLost() const
 {
-	if ((surfaceDesc2.ddsCaps.dwCaps & (DDSCAPS_VIDEOMEMORY | DDSCAPS_LOCALVIDMEM)) && !(surfaceDesc2.ddsCaps.dwCaps & DDSCAPS_SYSTEMMEMORY))
+	if ((surface.Surface || surface.Texture) && (surfaceDesc2.ddsCaps.dwCaps & DDSCAPS_VIDEOMEMORY) && !IsSurfaceManaged())
 	{
 		return true;
 	}
@@ -6699,10 +6704,15 @@ void m_IDirectDrawSurfaceX::InitSurfaceDesc(DWORD DirectXVersion)
 	{
 		surfaceDesc2.ddsCaps.dwCaps |= DDSCAPS_VISIBLE;
 	}
-	if (!(surfaceDesc2.ddsCaps.dwCaps & DDSCAPS_SYSTEMMEMORY) && !(surfaceDesc2.ddsCaps.dwCaps2 & DDSCAPS2_DONOTPERSIST))
+	if ((surfaceDesc2.ddsCaps.dwCaps & DDSCAPS_VIDEOMEMORY) ||
+		(!(surfaceDesc2.ddsCaps.dwCaps & DDSCAPS_SYSTEMMEMORY) && !(surfaceDesc2.ddsCaps.dwCaps2 & DDSCAPS2_DONOTPERSIST)))
 	{
-		surfaceDesc2.ddsCaps.dwCaps |= DDSCAPS_LOCALVIDMEM | DDSCAPS_VIDEOMEMORY;
+		surfaceDesc2.ddsCaps.dwCaps |= DDSCAPS_VIDEOMEMORY | DDSCAPS_LOCALVIDMEM;
 		surfaceDesc2.ddsCaps.dwCaps &= ~DDSCAPS_NONLOCALVIDMEM;
+	}
+	if ((surfaceDesc2.ddsCaps.dwCaps & DDSCAPS_SYSTEMMEMORY) && !(surfaceDesc2.ddsCaps.dwCaps & DDSCAPS_VIDEOMEMORY))
+	{
+		surfaceDesc2.ddsCaps.dwCaps &= ~(DDSCAPS_LOCALVIDMEM | DDSCAPS_NONLOCALVIDMEM);
 	}
 
 	// Create backbuffers

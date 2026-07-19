@@ -2302,7 +2302,6 @@ HRESULT m_IDirectDrawX::RestoreAllSurfaces()
 		HRESULT hr = TestD3D9CooperativeLevel();
 		switch (hr)
 		{
-
 		case D3DERR_DEVICELOST:
 			return DDERR_NOEXCLUSIVEMODE;
 
@@ -2316,8 +2315,8 @@ HRESULT m_IDirectDrawX::RestoreAllSurfaces()
 				}
 			}
 			[[fallthrough]];
+
 		case DD_OK:
-		case DDERR_NOEXCLUSIVEMODE:
 			// Recreate device, if needed
 			if (!d3d9Device)
 			{
@@ -2336,9 +2335,12 @@ HRESULT m_IDirectDrawX::RestoreAllSurfaces()
 					}
 				}
 			}
-		}
 
-		return hr;
+			return DD_OK;
+
+		default:
+			return hr;
+		}
 	}
 
 	return ProxyInterface->RestoreAllSurfaces();
@@ -2355,12 +2357,12 @@ HRESULT m_IDirectDrawX::TestCooperativeLevel()
 		case D3DERR_INVALIDCALL:
 		case D3DERR_DRIVERINTERNALERROR:
 			return DDERR_WRONGMODE;
+
 		case D3DERR_DEVICELOST:
-			// Full-screen applications receive the DDERR_NOEXCLUSIVEMODE return value if they lose exclusive device access
-			return DDERR_NOEXCLUSIVEMODE;
+			// Documentation: Full-screen applications receive the DDERR_NOEXCLUSIVEMODE return value if they lose exclusive device access
+			// Need to send DD_OK to prevent application hang on minimize
 		case D3DERR_DEVICENOTRESET:
 			// The TestCooperativeLevel method succeeds, returning DD_OK, if your application can restore its surfaces
-		case DDERR_NOEXCLUSIVEMODE:
 		case D3D_OK:
 		default:
 			return DD_OK;
@@ -3485,7 +3487,7 @@ HRESULT m_IDirectDrawX::CreateD9Device(char* FunctionName)
 
 	// Check if there are any device changes
 	const HRESULT hr_test = TestD3D9CooperativeLevel();
-	if (d3d9Device && (hr_test == D3D_OK || hr_test == DDERR_NOEXCLUSIVEMODE) &&
+	if (d3d9Device && hr_test == D3D_OK &&
 		presParamsBackup.BackBufferWidth == presParams.BackBufferWidth &&
 		presParamsBackup.BackBufferHeight == presParams.BackBufferHeight &&
 		presParamsBackup.Windowed == presParams.Windowed &&
@@ -3504,7 +3506,7 @@ HRESULT m_IDirectDrawX::CreateD9Device(char* FunctionName)
 	if (d3d9Device)
 	{
 		// Check if device needs to be reset
-		if ((hr_test == D3D_OK || hr_test == DDERR_NOEXCLUSIVEMODE || hr_test == D3DERR_DEVICENOTRESET) &&
+		if ((hr_test == D3D_OK || hr_test == D3DERR_DEVICENOTRESET) &&
 			presParamsBackup.Windowed == presParams.Windowed &&
 			presParamsBackup.hDeviceWindow == presParams.hDeviceWindow &&
 			LastBehaviorFlags == BehaviorFlags)
@@ -3724,15 +3726,19 @@ HRESULT m_IDirectDrawX::ResetD9Device()
 
 	// Check if device is ready to be restored
 	HRESULT hr = TestD3D9CooperativeLevel();
-	if (SUCCEEDED(hr) || hr == DDERR_NOEXCLUSIVEMODE)
+	switch (hr)
 	{
+	case DD_OK:
 		WndProc::SwitchingResolution = false;
-		return DD_OK;
-	}
-	else if (hr == D3DERR_DEVICELOST)
-	{
-		HWND hWnd = GetHwnd();
-		if (!IsIconic(hWnd) && hWnd == GetForegroundWindow())
+		return hr;
+
+	default:
+		LOG_LIMIT(100, __FUNCTION__ << " Error: TestCooperativeLevel = " << (D3DERR)hr);
+		return DDERR_WRONGMODE;
+
+	case D3DERR_DEVICELOST:
+		if (HWND hWnd = GetHwnd();
+			!IsIconic(hWnd) && hWnd == GetForegroundWindow())
 		{
 			return DDERR_WRONGMODE;
 		}
@@ -3740,16 +3746,13 @@ HRESULT m_IDirectDrawX::ResetD9Device()
 		{
 			return DDERR_SURFACELOST;
 		}
-	}
-	else if (hr != D3DERR_DEVICENOTRESET)
-	{
-		LOG_LIMIT(100, __FUNCTION__ << " Error: TestCooperativeLevel = " << (D3DERR)hr);
-		return DDERR_WRONGMODE;
+
+	case D3DERR_DEVICENOTRESET:
+		break;
 	}
 
 	// Hook WndProc before creating device
-	const HWND hWnd = GetHwnd();
-	WndProc::DATASTRUCT* WndDataStruct = WndProc::AddWndProc(hWnd);
+	WndProc::DATASTRUCT* WndDataStruct = WndProc::AddWndProc(GetHwnd());
 
 	// Mark as creating device
 	WndProc::ScopedSetDeviceCreationFlag SetCreatingDevice(WndDataStruct);
@@ -4130,35 +4133,32 @@ HRESULT m_IDirectDrawX::CreateD9Object()
 
 HRESULT m_IDirectDrawX::TestD3D9CooperativeLevel()
 {
-	if (d3d9Device)
+	if (!d3d9Device)
 	{
-		HRESULT hr = d3d9Device->TestCooperativeLevel();
-
-		if (hr == D3DERR_DEVICELOST || hr == D3DERR_DEVICENOTRESET)
-		{
-			if (!IsDeviceLost)
-			{
-				ReDrawNextPresent = true;
-				CopyGDISurface = true;
-				MarkAllSurfacesDirty();
-			}
-
-			IsDeviceLost = true;
-		}
-		else if (hr == DD_OK || hr == DDERR_NOEXCLUSIVEMODE)
-		{
-			IsDeviceLost = false;
-			WndProc::SwitchingResolution = false;
-			if (ExclusiveMode)
-			{
-				return DD_OK;
-			}
-		}
-
-		return hr;
+		return DD_OK;
 	}
 
-	return DD_OK;
+	HRESULT hr = d3d9Device->TestCooperativeLevel();
+
+	switch (hr)
+	{
+	case DD_OK:
+	case DDERR_NOEXCLUSIVEMODE:
+		IsDeviceLost = false;
+		WndProc::SwitchingResolution = false;
+		return DD_OK;
+	case D3DERR_DEVICELOST:
+	case D3DERR_DEVICENOTRESET:
+		if (!IsDeviceLost)
+		{
+			ReDrawNextPresent = true;
+			CopyGDISurface = true;
+		}
+		IsDeviceLost = true;
+		[[fallthrough]];
+	default:
+		return hr;
+	}
 }
 
 void m_IDirectDrawX::ClearRenderTarget()
@@ -4284,19 +4284,6 @@ void m_IDirectDrawX::Clear3DSurfaceFlag()
 	for (const auto& pSurface : SurfaceList)
 	{
 		pSurface.Interface->ClearUsing3DFlag();
-	}
-}
-
-void m_IDirectDrawX::MarkAllSurfacesDirty()
-{
-	ScopedCriticalSection ThreadLockDD(DdrawWrapper::GetDDCriticalSection());
-
-	for (const auto& pDDraw : DDrawVector)
-	{
-		for (const auto& pSurface : pDDraw->SurfaceList)
-		{
-			pSurface.Interface->MarkSurfaceLost();
-		}
 	}
 }
 
@@ -5634,7 +5621,6 @@ HRESULT m_IDirectDrawX::Present(RECT* pSourceRect, RECT* pDestRect)
 	if (hr == D3DERR_DEVICELOST)
 	{
 		hr = TestD3D9CooperativeLevel();
-		hr = (hr == DDERR_NOEXCLUSIVEMODE) ? DD_OK : hr;
 	}
 
 	// Reset device

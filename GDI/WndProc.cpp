@@ -529,40 +529,32 @@ LRESULT CALLBACK WndProc::Handler(HWND hWnd, UINT Msg, WPARAM wParam, LPARAM lPa
 			{
 				LOG_LIMIT(3, __FUNCTION__ << " Activating window because WM_ACTIVATE (" << LOWORD(wParam) << ") message detected when window is iconic: " << hWnd);
 
-				DWORD currentThread = GetCurrentThreadId();
-				DWORD foregroundThread = GetWindowThreadProcessId(GetForegroundWindow(), nullptr);
-
-				// Attach input
-				if (currentThread != foregroundThread)
-				{
-					AttachThreadInput(currentThread, foregroundThread, TRUE);
-				}
-
-				// Restore window and bring to top
-				ShowWindow(hWnd, SW_RESTORE);
-				SetWindowPos(hWnd, HWND_TOP, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOOWNERZORDER);
-
-				// Force foreground & active
-				SetForegroundWindow(hWnd);
-				SetActiveWindow(hWnd);
-
-				// Detach input
-				if (currentThread != foregroundThread)
-				{
-					AttachThreadInput(currentThread, foregroundThread, FALSE);
-				}
-
 				// Let the game know it is active
-				CallWndProc(pWndProc, hWnd, WM_ACTIVATE, WA_ACTIVE, 0);
-				SendMessage(hWnd, WM_ACTIVATEAPP, TRUE, 0);
+				LRESULT lr = CallWndProc(pWndProc, hWnd, WM_ACTIVATE, wParam, 0);
+
+				// Restore window
+				if (IsIconic(hWnd))
+				{
+					ShowWindow(hWnd, SW_RESTORE);
+					SetWindowPos(hWnd, HWND_TOP, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOOWNERZORDER);
+				}
+
+				// Bring the window to top
+				if (hWnd != GetForegroundWindow() && hWnd != GetFocus() && hWnd != GetActiveWindow())
+				{
+					BringWindowToTop(hWnd);
+				}
+
+				// Make window active
+				if (hWnd != GetActiveWindow())
+				{
+					SetActiveWindow(hWnd);
+				}
 
 				// Force device restore
 				m_IDirectDrawX::TriggerDeviceReset(hWnd);
 
-				// Trigger window redraw
-				RedrawWindow(hWnd, nullptr, nullptr, RDW_ERASE | RDW_INVALIDATE | RDW_ALLCHILDREN);
-
-				return 0;
+				return lr;
 			}
 			// Some games require filtering this when iconic, other games require this message to see when the window is activated
 			if (pDataStruct->DirectXVersion <= 4)

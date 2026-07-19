@@ -458,8 +458,6 @@ HRESULT m_IDirect3DViewportX::Clear(DWORD dwCount, LPD3DRECT lpRects, DWORD dwFl
 			return D3DERR_VIEWPORTHASNODEVICE;
 		}
 
-		HRESULT hr = D3DERR_VIEWPORTHASNODEVICE;
-
 		for (auto& entry : AttachedD3DDevices)
 		{
 			// Get device viewport
@@ -467,26 +465,26 @@ HRESULT m_IDirect3DViewportX::Clear(DWORD dwCount, LPD3DRECT lpRects, DWORD dwFl
 			GetCurrentViewport(entry, Viewport9);
 			Viewport9 = FixViewport(Viewport9);
 
-			HRESULT ret = entry->Clear(Viewport9, dwCount, lpRects, dwFlags, 0x00000000, 1.0f, 0);
+			// Check for zbuffer and stencil surface
+			bool HasAttachedZBuffer = false, HasAttachedStencil = false;
+			GetAttachedBufferDetails(entry, HasAttachedZBuffer, HasAttachedStencil);
 
 			// Unlike Clear2(), Clear() isn't supposed to error out on zbuffer or stencil clears when no zbuffer or stencil is attached
-			if (FAILED(ret) && (dwFlags & D3DCLEAR_STENCIL))
+			DWORD Flags = (dwFlags & ~(D3DCLEAR_ZBUFFER | D3DCLEAR_STENCIL))
+				| (HasAttachedZBuffer ? (dwFlags & D3DCLEAR_ZBUFFER) : 0)
+				| (HasAttachedStencil ? (dwFlags & D3DCLEAR_STENCIL) : 0);
+
+			// Nothing to clear on this device.
+			if (Flags == 0)
 			{
-				ret = entry->Clear(Viewport9, dwCount, lpRects, (dwFlags & ~D3DCLEAR_STENCIL), 0x00000000, 1.0f, 0);
-			}
-			if (FAILED(ret) && (dwFlags & D3DCLEAR_ZBUFFER))
-			{
-				ret = entry->Clear(Viewport9, dwCount, lpRects, (dwFlags & ~(D3DCLEAR_STENCIL | D3DCLEAR_ZBUFFER)), 0x00000000, 1.0f, 0);
+				continue;
 			}
 
-			// Prioritized succeed over failure
-			if (SUCCEEDED(ret) || (FAILED(hr) && FAILED(ret)))
-			{
-				hr = ret;
-			}
+			// Clear device
+			entry->Clear(Viewport9, dwCount, lpRects, Flags, 0x00000000, 1.0f, 0);
 		}
 
-		return hr;
+		return D3D_OK;
 	}
 
 	return ProxyInterface->Clear(dwCount, lpRects, dwFlags);
@@ -886,29 +884,24 @@ HRESULT m_IDirect3DViewportX::Clear2(DWORD dwCount, LPD3DRECT lpRects, DWORD dwF
 
 			// Check for zbuffer and stencil surface
 			bool HasAttachedZBuffer = false, HasAttachedStencil = false;
-			{
-				m_IDirectDrawSurfaceX* pRenderTarget = entry->GetRenderTargetX();
-				if (pRenderTarget)
-				{
-					m_IDirectDrawSurfaceX* pZBuffer = pRenderTarget->GetAttachedDepthStencil();
-					if (pZBuffer)
-					{
-						HasAttachedZBuffer = true;
-
-						if (HasStencil(pZBuffer->GetSurfaceFormat()))
-						{
-							HasAttachedStencil = true;
-						}
-					}
-				}
-			}
+			GetAttachedBufferDetails(entry, HasAttachedZBuffer, HasAttachedStencil);
 
 			// This method fails if you specify the D3DCLEAR_ZBUFFER or D3DCLEAR_STENCIL flags when the render target does not have an attached depth-buffer.
 			// This behavior differs from the IDirect3DViewport3::Clear method, which will succeed if under these circumstances.
-			HRESULT ret =
-				(dwFlags & D3DCLEAR_ZBUFFER) && !HasAttachedZBuffer ? D3DERR_ZBUFFER_NOTPRESENT :
-				(dwFlags & D3DCLEAR_STENCIL) && !HasAttachedStencil ? D3DERR_STENCILBUFFER_NOTPRESENT :
-				entry->Clear(Viewport9, dwCount, lpRects, dwFlags, dwColor, dvZ, dwStencil);
+			HRESULT ret = entry->Clear(Viewport9, dwCount, lpRects, dwFlags, dwColor, dvZ, dwStencil);
+
+			// Set return value
+			if (FAILED(ret) && ret != DDERR_SURFACELOST)
+			{
+				if ((dwFlags & D3DCLEAR_ZBUFFER) && !HasAttachedZBuffer)
+				{
+					ret = D3DERR_ZBUFFER_NOTPRESENT;
+				}
+				else if ((dwFlags & D3DCLEAR_STENCIL) && !HasAttachedStencil)
+				{
+					ret = D3DERR_STENCILBUFFER_NOTPRESENT;
+				}
+			}
 
 			// Prioritized succeed over failure
 			if (SUCCEEDED(ret) || (FAILED(hr) && FAILED(ret)))
@@ -917,7 +910,18 @@ HRESULT m_IDirect3DViewportX::Clear2(DWORD dwCount, LPD3DRECT lpRects, DWORD dwF
 			}
 		}
 
-		return hr;
+		switch (hr)
+		{
+		case D3D_OK:
+		case D3DERR_VIEWPORTHASNODEVICE:
+		case DDERR_SURFACELOST:
+		case D3DERR_ZBUFFER_NOTPRESENT:
+		case D3DERR_STENCILBUFFER_NOTPRESENT:
+			return hr;
+
+		default:
+			return DDERR_INVALIDPARAMS;
+		}
 	}
 
 	return ProxyInterface->Clear2(dwCount, lpRects, dwFlags, dwColor, dvZ, dwStencil);
@@ -1115,6 +1119,24 @@ void m_IDirect3DViewportX::ClearCurrentViewport(m_IDirect3DDeviceX* pDirect3DDev
 		if (!pDirect3DDeviceX->IsLightInUse(reinterpret_cast<m_IDirect3DLight*>(entry)))
 		{
 			pDirect3DDeviceX->ClearLight(reinterpret_cast<m_IDirect3DLight*>(entry));
+		}
+	}
+}
+
+void m_IDirect3DViewportX::GetAttachedBufferDetails(m_IDirect3DDeviceX* pD3DDevice, bool& HasAttachedZBuffer, bool& HasAttachedStencil)
+{
+	HasAttachedZBuffer = false;
+	HasAttachedStencil = false;
+
+	// Check for zbuffer and stencil surface
+	m_IDirectDrawSurfaceX* pRenderTarget = pD3DDevice->GetRenderTargetX();
+	if (pRenderTarget)
+	{
+		m_IDirectDrawSurfaceX* pZBuffer = pRenderTarget->GetAttachedDepthStencil();
+		if (pZBuffer)
+		{
+			HasAttachedZBuffer = true;
+			HasAttachedStencil = HasStencil(pZBuffer->GetSurfaceFormat());
 		}
 	}
 }

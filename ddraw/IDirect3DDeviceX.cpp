@@ -395,19 +395,6 @@ HRESULT m_IDirect3DDeviceX::Execute(LPDIRECT3DEXECUTEBUFFER lpDirect3DExecuteBuf
 			return DDERR_INVALIDOBJECT;
 		}
 
-		if (lpCurrentRenderTargetX)
-		{
-			switch (lpCurrentRenderTargetX->IsLost())
-			{
-			case DD_OK:
-				break;
-			case DDERR_SURFACELOST:
-				return DDERR_SURFACELOST;
-			default:
-				return DDERR_WRONGMODE;
-			}
-		}
-
 		// Flags
 		// D3DEXECUTE_CLIPPED - Clip any primitives in the buffer that are outside or partially outside the viewport. 
 		// D3DEXECUTE_UNCLIPPED - All primitives in the buffer are contained within the viewport.

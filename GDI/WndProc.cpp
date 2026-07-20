@@ -441,12 +441,30 @@ LRESULT CALLBACK WndProc::Handler(HWND hWnd, UINT Msg, WPARAM wParam, LPARAM lPa
 	switch (Msg)
 	{
 	case WM_APP_CREATE_D3D9_DEVICE:
-		// Handle Direct3D9 device creation
 		if (WM_MAKE_KEY(hWnd, wParam) == lParam)
 		{
 			if (m_IDirectDrawX::CheckDirectDrawXInterface((void*)wParam))
 			{
 				((m_IDirectDrawX*)wParam)->CreateD9Device(__FUNCTION__);
+			}
+			return 0;
+		}
+		break;
+
+	case WM_APP_RESTORE_D3D9_DEVICE:
+		if (WM_MAKE_KEY(hWnd, wParam) == lParam)
+		{
+			// Restore window
+			if (IsIconic(hWnd))
+			{
+				LOG_LIMIT(3, __FUNCTION__ << " Activating device window: " << hWnd);
+				ShowWindow(hWnd, SW_RESTORE);
+			}
+
+			// Restore DirectDraw device once restored
+			if (!IsIconic(hWnd))
+			{
+				m_IDirectDrawX::TriggerDeviceReset(hWnd);
 			}
 			return 0;
 		}
@@ -524,43 +542,26 @@ LRESULT CALLBACK WndProc::Handler(HWND hWnd, UINT Msg, WPARAM wParam, LPARAM lPa
 		// Special handling for iconic state to prevent issues with some games
 		if (pDataStruct->IsDirectDraw && IsIconic(hWnd))
 		{
-			// Tell Windows & game to fully restore
-			if (LOWORD(wParam) == WA_ACTIVE || LOWORD(wParam) == WA_CLICKACTIVE)
-			{
-				LOG_LIMIT(3, __FUNCTION__ << " Activating window because WM_ACTIVATE (" << LOWORD(wParam) << ") message detected when window is iconic: " << hWnd);
-
-				// Let the game know it is active
-				LRESULT lr = CallWndProc(pWndProc, hWnd, WM_ACTIVATE, wParam, 0);
-
-				// Restore window
-				if (IsIconic(hWnd))
-				{
-					ShowWindow(hWnd, SW_RESTORE);
-					SetWindowPos(hWnd, HWND_TOP, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOOWNERZORDER);
-				}
-
-				// Bring the window to top
-				if (hWnd != GetForegroundWindow() && hWnd != GetFocus() && hWnd != GetActiveWindow())
-				{
-					BringWindowToTop(hWnd);
-				}
-
-				// Make window active
-				if (hWnd != GetActiveWindow())
-				{
-					SetActiveWindow(hWnd);
-				}
-
-				// Force device restore
-				m_IDirectDrawX::TriggerDeviceReset(hWnd);
-
-				return lr;
-			}
 			// Some games require filtering this when iconic, other games require this message to see when the window is activated
 			if (pDataStruct->DirectXVersion <= 4)
 			{
 				LOG_LIMIT(3, __FUNCTION__ << " Warning: filtering WM_ACTIVATE when iconic: " << LOWORD(wParam));
-				return DefWndProc(hWnd, Msg, wParam, lParam);
+				LRESULT lr = DefWndProc(hWnd, Msg, wParam, lParam);
+
+				if (LOWORD(wParam) == WA_ACTIVE || LOWORD(wParam) == WA_CLICKACTIVE)
+				{
+					PostMessage(hWnd, WM_APP_RESTORE_D3D9_DEVICE, (WPARAM)hWnd, WM_MAKE_KEY(hWnd, hWnd));
+				}
+
+				return lr;
+			}
+			else if (LOWORD(wParam) == WA_ACTIVE || LOWORD(wParam) == WA_CLICKACTIVE)
+			{
+				LRESULT lr = CallWndProc(pWndProc, hWnd, Msg, wParam, lParam);
+
+				PostMessage(hWnd, WM_APP_RESTORE_D3D9_DEVICE, (WPARAM)hWnd, WM_MAKE_KEY(hWnd, hWnd));
+
+				return lr;
 			}
 		}
 		// Filter messages for loss of focus or minimize

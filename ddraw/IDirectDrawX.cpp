@@ -5702,10 +5702,7 @@ void m_IDirectDrawX::TriggerDeviceReset(HWND hWnd)
 	{
 		if (pDDraw == CreationInterface)
 		{
-			if (FAILED(pDDraw->ResetD9Device()))
-			{
-				SendMessage(hWnd, WM_ACTIVATEAPP, TRUE, 0);
-			}
+			pDDraw->ResetD9Device();
 		}
 	}
 }

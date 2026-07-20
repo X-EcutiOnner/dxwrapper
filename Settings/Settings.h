@@ -138,6 +138,7 @@ inline std::ostream& operator<<(std::ostream& os, const DHEX& dhex) {
 	visit(IncludeProcess) \
 	visit(InitialWindowPositionLeft) \
 	visit(InitialWindowPositionTop) \
+	visit(InvertForceDirection) \
 	visit(isAppCompatDataSet) \
 	visit(LimitDisplayModeCount) \
 	visit(LimitPerFrameFPS) \
@@ -353,6 +354,7 @@ struct CONFIG
 	DWORD HandleExceptions = 0;					// Handles unhandled exceptions in the application. 1 = rewrite code to nop, 2 = skip code on error
 	bool HideWindowFocusChanges = false;		// Hide windows messages about losing focus or getting minimized
 	bool isAppCompatDataSet = false;			// Flag that holds tells whether any of the AppCompatData flags are set
+	bool InvertForceDirection = false;			// Inverts the input device force feedback direction
 	bool LimitDisplayModeCount = false;			// Limits the number of display modes sent to program, some games crash when you feed them with too many resolutions
 	float LimitPerFrameFPS = 0;					// Limits each frame by adding a delay if the frame is to fast
 	bool LimitRefreshRates = false;				// Limits the number of refresh rates sent to program, some games crash when you feed them with too many resolutions

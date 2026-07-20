@@ -7,6 +7,8 @@ private:
 
 	LONG RefCount = 1;
 
+	GUID guid = {};
+
 public:
 	m_IDirectInputEffect8(IDirectInputEffect *aOriginal) : AddressLookupTableDinput8Object(aOriginal), ProxyInterface(aOriginal)
 	{
@@ -36,4 +38,5 @@ public:
 
 	// Helper functions
 	IDirectInputEffect *GetProxyInterface() { return ProxyInterface; }
+	void SetGUID(REFGUID rguid) { guid = rguid; }
 };

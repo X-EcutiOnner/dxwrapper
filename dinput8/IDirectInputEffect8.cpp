@@ -80,11 +80,32 @@ HRESULT m_IDirectInputEffect8::GetParameters(LPDIEFFECT peff, DWORD dwFlags)
 	return ProxyInterface->GetParameters(peff, dwFlags);
 }
 
-HRESULT m_IDirectInputEffect8::SetParameters(LPCDIEFFECT peff, DWORD dwFlags)
+HRESULT m_IDirectInputEffect8::SetParameters(LPCDIEFFECT lpeff, DWORD dwFlags)
 {
 	Logging::LogDebug() << __FUNCTION__ << " (" << this << ")";
 
-	return ProxyInterface->SetParameters(peff, dwFlags);
+	DIEFFECT eff = {};
+	DICONSTANTFORCE constantForce = {};
+
+	// Fixes a force feedback issue with 'The Real Car Simulator R'
+	if (Config.InvertForceDirection
+		&& lpeff
+		&& guid == GUID_ConstantForce
+		&& lpeff->lpvTypeSpecificParams
+		&& lpeff->cbTypeSpecificParams == sizeof(DICONSTANTFORCE))
+	{
+		eff = *lpeff;
+		constantForce = *static_cast<DICONSTANTFORCE*>(lpeff->lpvTypeSpecificParams);
+
+		constantForce.lMagnitude = -(constantForce.lMagnitude);
+
+		LOG_LIMIT(3, __FUNCTION__ << " Inverting ConstantForce magnitude: " << constantForce.lMagnitude << " -> " << -(constantForce.lMagnitude));
+
+		eff.lpvTypeSpecificParams = &constantForce;
+		lpeff = &eff;
+	}
+
+	return ProxyInterface->SetParameters(lpeff, dwFlags);
 }
 
 HRESULT m_IDirectInputEffect8::Start(DWORD dwIterations, DWORD dwFlags)

@@ -560,15 +560,38 @@ HRESULT m_IDirectInputDevice8::Initialize(HINSTANCE hinst, DWORD dwVersion, REFG
 	return ProxyInterface->Initialize(hinst, dwVersion, rguid);
 }
 
-HRESULT m_IDirectInputDevice8::CreateEffect(REFGUID rguid, LPCDIEFFECT lpeff, LPDIRECTINPUTEFFECT * ppdeff, LPUNKNOWN punkOuter)
+HRESULT m_IDirectInputDevice8::CreateEffect(REFGUID rguid, LPCDIEFFECT lpeff, LPDIRECTINPUTEFFECT* ppdeff, LPUNKNOWN punkOuter)
 {
 	Logging::LogDebug() << __FUNCTION__ << " (" << this << ")";
+
+	DIEFFECT eff = {};
+	DICONSTANTFORCE constantForce = {};
+
+	// Fixes a force feedback issue with 'The Real Car Simulator R'
+	if (Config.InvertForceDirection
+		&& lpeff
+		&& rguid == GUID_ConstantForce
+		&& lpeff->lpvTypeSpecificParams
+		&& lpeff->cbTypeSpecificParams == sizeof(DICONSTANTFORCE))
+	{
+		eff = *lpeff;
+		constantForce = *static_cast<DICONSTANTFORCE*>(lpeff->lpvTypeSpecificParams);
+
+		constantForce.lMagnitude = -(constantForce.lMagnitude);
+
+		LOG_LIMIT(3, __FUNCTION__ << " Inverting ConstantForce magnitude: " << constantForce.lMagnitude << " -> " << -(constantForce.lMagnitude));
+
+		eff.lpvTypeSpecificParams = &constantForce;
+		lpeff = &eff;
+	}
 
 	HRESULT hr = ProxyInterface->CreateEffect(rguid, lpeff, ppdeff, punkOuter);
 
 	if (SUCCEEDED(hr) && ppdeff)
 	{
-		*ppdeff = new m_IDirectInputEffect8(*ppdeff);
+		m_IDirectInputEffect8* pEffect = new m_IDirectInputEffect8(*ppdeff);
+		pEffect->SetGUID(rguid);
+		*ppdeff = pEffect;
 	}
 
 	return hr;

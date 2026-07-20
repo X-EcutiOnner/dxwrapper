@@ -182,7 +182,6 @@ private:
 		bool CanBeRenderTarget = false;
 		bool IsUsingWindowedMode = false;
 		bool IsUsingFailoverSurface = false;
-		bool RecreateAuxiliarySurfaces = false;
 		bool HasData = false;
 		bool UsingSurfaceMemory = false;
 		bool UsingShadowSurface = false;
@@ -236,7 +235,6 @@ private:
 	DWORD MaxMipMapLevel = 0;							// Total number of manually created MipMap levels
 	DWORD CurrentSurfaceUSN = 0;						// Used for detecting when MipMap is out-of-date
 	bool IsMipMapReadyToUse = false;					// Used for MipMap filtering
-	bool RecreateAuxiliarySurfaces = false;
 	struct {
 		LPDIRECT3DSURFACE9 Surface = nullptr;			// Shadow surface for StretchRect
 		LPDIRECT3DTEXTURE9 Texture = nullptr;			// Shadow texture for StretchRect
@@ -551,7 +549,7 @@ public:
 	// Direct3D9 interface functions
 	void SetAsRenderTarget();
 	void ReleaseD9Surface(bool BackupData, bool ResetSurface, bool IsDeviceLost);
-	void ReleaseD9AuxiliarySurfaces();
+	void ReleaseD9AuxiliarySurfaces(bool ResetSurface);
 	HRESULT PresentSurface(LPRECT lpDestRect, bool IsSkipScene, bool SkipCriticalSection);
 	void ResetSurfaceDisplay();
 	void SetDirtyFlag(DWORD MipMapLevel);

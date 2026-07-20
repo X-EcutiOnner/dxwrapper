@@ -314,7 +314,7 @@ ULONG m_IDirectDrawSurfaceX::Release(DWORD DirectXVersion)
 					{
 						ddrawParent->AddReleasedSurface(this);
 					}
-					ReleaseD9AuxiliarySurfaces();
+					ReleaseD9AuxiliarySurfaces(false);
 					ReleaseDirectDrawResources();
 				}
 				else
@@ -4275,12 +4275,6 @@ HRESULT m_IDirectDrawSurfaceX::CheckInterface(char* FunctionName, bool CheckD3DD
 				return DDERR_WRONGMODE;
 			}
 		}
-
-		// Check auxiliary surfaces
-		if ((RecreateAuxiliarySurfaces || surface.RecreateAuxiliarySurfaces) && FAILED(CreateD9AuxiliarySurfaces()))
-		{
-			return DDERR_WRONGMODE;
-		}
 	}
 
 	return DD_OK;
@@ -4617,10 +4611,6 @@ HRESULT m_IDirectDrawSurfaceX::CreateD9AuxiliarySurfaces()
 			}
 		}
 	}
-
-	// Reset flags
-	RecreateAuxiliarySurfaces = false;
-	surface.RecreateAuxiliarySurfaces = false;
 
 	return DD_OK;
 }
@@ -5740,7 +5730,7 @@ void m_IDirectDrawSurfaceX::ReleaseD9Surface(bool BackupData, bool ResetSurface,
 		ddrawParent->ClearRenderTarget();
 	}
 
-	ReleaseD9AuxiliarySurfaces();
+	ReleaseD9AuxiliarySurfaces(ResetSurface);
 
 	// Release d3d9 3D surface
 	if (surface.Surface && ShouldReleaseMainSurface)
@@ -5778,10 +5768,10 @@ void m_IDirectDrawSurfaceX::ReleaseD9Surface(bool BackupData, bool ResetSurface,
 	}
 }
 
-void m_IDirectDrawSurfaceX::ReleaseD9AuxiliarySurfaces()
+void m_IDirectDrawSurfaceX::ReleaseD9AuxiliarySurfaces(bool ResetSurface)
 {
 	// Release d3d9 shadow surface when surface is released
-	if (surface.Shadow)
+	if (surface.Shadow && !surface.Surface)
 	{
 		Logging::LogDebug() << __FUNCTION__ << " Releasing Direct3D9 surface";
 		ULONG ref = surface.Shadow->Release();
@@ -5829,7 +5819,7 @@ void m_IDirectDrawSurfaceX::ReleaseD9AuxiliarySurfaces()
 	}
 
 	// Release d3d9 palette surface texture
-	if (primary.PaletteTexture)
+	if (primary.PaletteTexture && !ResetSurface)
 	{
 		Logging::LogDebug() << __FUNCTION__ << " Releasing Direct3D9 palette texture surface";
 		ULONG ref = primary.PaletteTexture->Release();
@@ -5841,7 +5831,7 @@ void m_IDirectDrawSurfaceX::ReleaseD9AuxiliarySurfaces()
 	}
 
 	// Release d3d9 color keyed surface texture
-	if (surface.DrawTexture)
+	if (surface.DrawTexture && (!ResetSurface || IsD9UsingVideoMemory()))
 	{
 		Logging::LogDebug() << __FUNCTION__ << " Releasing Direct3D9 DrawTexture surface";
 		ULONG ref = surface.DrawTexture->Release();
@@ -5887,10 +5877,6 @@ void m_IDirectDrawSurfaceX::ReleaseD9AuxiliarySurfaces()
 		}
 		surface.DisplayTexture = nullptr;
 	}
-
-	// Set flags
-	RecreateAuxiliarySurfaces = true;
-	surface.RecreateAuxiliarySurfaces = true;
 }
 
 void m_IDirectDrawSurfaceX::ReleaseDCSurface()

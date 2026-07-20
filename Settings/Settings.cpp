@@ -819,19 +819,52 @@ void CONFIG::SetConfig()
 	}
 
 	// Set mouse scroll factor
-	if (abs(MouseMovementFactor) < 0.01f || abs(MouseMovementFactor - 1.0f) < 0.01f)
+	auto NormalizeMouseMovementFactor = [&](float& Factor)
 	{
-		MouseMovementFactor = 1.0f;
+		if (abs(Factor) < 0.01f ||
+			abs(abs(Factor) - 1.0f) < 0.01f)
+		{
+			Factor = 1.0f;
+		}
+		else if (Factor != 0.0f)
+		{
+			FixHighFrequencyMouse = true;
+		}
+	};
+	NormalizeMouseMovementFactor(MouseMovementFactor);
+	NormalizeMouseMovementFactor(MouseMovementFactorX);
+	NormalizeMouseMovementFactor(MouseMovementFactorY);
+
+	if (MouseMovementFactor != 1.0f)
+	{
+		if (MouseMovementFactorX == 1.0f)
+		{
+			MouseMovementFactorX = abs(MouseMovementFactor);
+		}
+
+		if (MouseMovementFactorY == 1.0f)
+		{
+			MouseMovementFactorY = MouseMovementFactor;
+		}
 	}
-	else if (MouseMovementFactor != 0.0f)
+
+	// Mouse movement padding
+	if (MouseMovementPadding || MouseMovementPaddingX || MouseMovementPaddingY)
 	{
 		FixHighFrequencyMouse = true;
 	}
 
-	// Mouse movement padding
 	if (MouseMovementPadding)
 	{
-		FixHighFrequencyMouse = true;
+		if (!MouseMovementPaddingX)
+		{
+			MouseMovementPaddingX = MouseMovementPadding;
+		}
+
+		if (!MouseMovementPaddingY)
+		{
+			MouseMovementPaddingY = MouseMovementPadding;
+		}
 	}
 
 	// Windows Lie

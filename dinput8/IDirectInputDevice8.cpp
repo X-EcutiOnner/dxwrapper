@@ -742,18 +742,28 @@ HRESULT m_IDirectInputDevice8::GetImageInfoT(T* ProxyInterfaceT, V lpdiDevImageI
 // Helper functions
 void m_IDirectInputDevice8::AdjustMouseAxis(LONG& value, bool isY)
 {
-	if (value != 0)
+	if (value == 0)
 	{
-		double factor = isY ? Config.MouseMovementFactor : std::abs(Config.MouseMovementFactor);
-		LONG baseMovement = (LONG)round(value * factor);
+		return;
+	}
 
-		if (std::abs(baseMovement) < (LONG)Config.MouseMovementPadding)
-		{
-			value = (value < 0) ? -(LONG)Config.MouseMovementPadding : (LONG)Config.MouseMovementPadding;
-		}
-		else
-		{
-			value = baseMovement;
-		}
+	const double factor = isY ?
+		Config.MouseMovementFactorY :
+		Config.MouseMovementFactorX;
+
+	const LONG padding = isY ?
+		static_cast<LONG>(Config.MouseMovementPaddingY) :
+		static_cast<LONG>(Config.MouseMovementPaddingX);
+
+	const LONG baseMovement =
+		static_cast<LONG>(std::round(value * factor));
+
+	if (std::abs(baseMovement) < padding)
+	{
+		value = (value < 0) ? -padding : padding;
+	}
+	else
+	{
+		value = baseMovement;
 	}
 }

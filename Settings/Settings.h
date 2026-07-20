@@ -149,7 +149,11 @@ inline std::ostream& operator<<(std::ostream& os, const DHEX& dhex) {
 	visit(LockColorkey) \
 	visit(LoopSleepTime) \
 	visit(MouseMovementFactor) \
+	visit(MouseMovementFactorX) \
+	visit(MouseMovementFactorY) \
 	visit(MouseMovementPadding) \
+	visit(MouseMovementPaddingX) \
+	visit(MouseMovementPaddingY) \
 	visit(Num2DBuffers) \
 	visit(Num3DBuffers) \
 	visit(OverrideRefreshRate) \
@@ -337,7 +341,11 @@ struct CONFIG
 	bool EnableVSync = false;					// Enables VSync for d3d9 wrapper
 	bool FixHighFrequencyMouse = false;			// Gets the latest mouse status by merging the DirectInput buffer data
 	float MouseMovementFactor = 1.0f;			// Sets the mouse movement speed factor, requires enabling FixHighFrequencyMouse
+	float MouseMovementFactorX = 1.0f;			// Sets the mouse movement speed factor for X axis, requires enabling FixHighFrequencyMouse
+	float MouseMovementFactorY = 1.0f;			// Sets the mouse movement speed factor for Y axis, requires enabling FixHighFrequencyMouse
 	DWORD MouseMovementPadding = 0;				// Adds extra mouse movement to overcome issues with input deadzone in some games, requires enabling FixHighFrequencyMouse
+	DWORD MouseMovementPaddingX = 0;			// Adds extra mouse movement for X axis to overcome issues with input deadzone in some games, requires enabling FixHighFrequencyMouse
+	DWORD MouseMovementPaddingY = 0;			// Adds extra mouse movement for Y axis to overcome issues with input deadzone in some games, requires enabling FixHighFrequencyMouse
 	DWORD FixPerfCounterUptime = 0;				// Reduces uptime counters to prevent slowdowns in games
 	bool ForceExclusiveFullscreen = false;		// Forces exclusive fullscreen mode in d3d9
 	DHEX ForceKeyboardLayout = {};				// Force specific keyboard layout

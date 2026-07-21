@@ -22,8 +22,8 @@ namespace WndProc
 		std::atomic<bool> IsExclusiveMode = false;
 		std::atomic<bool> NoWindowChanges = false;
 		std::atomic<bool> InSizeMove = false;
-		std::atomic<WORD> IsWindowActive = 0xFFFF;
-		std::atomic<WORD> IsWindowIconic = 0xFFFF;
+		std::atomic<WPARAM> IsWindowActive = UINT32_MAX;
+		std::atomic<BOOL> IsWindowIconic = UINT32_MAX;
 		std::atomic<int> DeviceCounter = 0;
 		std::atomic<LONG> ClipWidth = 0;
 		std::atomic<LONG> ClipHeight = 0;

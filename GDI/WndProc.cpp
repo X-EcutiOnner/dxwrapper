@@ -454,6 +454,8 @@ LRESULT CALLBACK WndProc::Handler(HWND hWnd, UINT Msg, WPARAM wParam, LPARAM lPa
 	case WM_APP_RESTORE_D3D9_DEVICE:
 		if (WM_MAKE_KEY(hWnd, wParam) == lParam)
 		{
+			LOG_LIMIT(3, __FUNCTION__ << " Activating device window. Iconic: " << IsIconic(hWnd));
+
 			// Restore window
 			if (IsIconic(hWnd))
 			{
@@ -464,7 +466,41 @@ LRESULT CALLBACK WndProc::Handler(HWND hWnd, UINT Msg, WPARAM wParam, LPARAM lPa
 			// Restore DirectDraw device once restored
 			if (!IsIconic(hWnd))
 			{
-				m_IDirectDrawX::TriggerDeviceReset(hWnd);
+				LOG_LIMIT(3, __FUNCTION__ << " Attempting to reset device.");
+				if (m_IDirectDrawX::TriggerDeviceReset(hWnd) == DDERR_SURFACELOST)
+				{
+					// Force Windows to recalculate window state
+					ShowWindow(hWnd, SW_SHOW);
+
+					// Bring it to the foreground
+					HWND fgWnd = GetForegroundWindow();
+
+					DWORD currentThread = GetCurrentThreadId();
+					DWORD foregroundThread = GetWindowThreadProcessId(fgWnd, nullptr);
+
+					BOOL attached = FALSE;
+
+					if (currentThread != foregroundThread)
+					{
+						attached = AttachThreadInput(currentThread, foregroundThread, TRUE);
+					}
+
+					BringWindowToTop(hWnd);
+					SetForegroundWindow(hWnd);
+					SetActiveWindow(hWnd);
+					SetFocus(hWnd);
+
+					if (attached)
+					{
+						AttachThreadInput(currentThread, foregroundThread, FALSE);
+					}
+
+					// Force a non-client/window update
+					SetWindowPos(hWnd, HWND_TOP, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_SHOWWINDOW | SWP_NOACTIVATE);
+
+					// Force pending window messages to process
+					UpdateWindow(hWnd);
+				}
 			}
 			return 0;
 		}
@@ -525,10 +561,10 @@ LRESULT CALLBACK WndProc::Handler(HWND hWnd, UINT Msg, WPARAM wParam, LPARAM lPa
 		// Filter duplicate messages when using DirectDraw
 		if (pDataStruct->IsDirectDraw)
 		{
-			const bool IsDuplicateMessage = (pDataStruct->IsWindowActive == LOWORD(wParam));
-			pDataStruct->IsWindowActive = LOWORD(wParam);
+			const bool IsDuplicateMessage = (pDataStruct->IsWindowActive == wParam);
+			pDataStruct->IsWindowActive = wParam;
 
-			const WORD IsWindowIconic = static_cast<WORD>(IsIconic(hWnd));
+			const BOOL IsWindowIconic = IsIconic(hWnd);
 
 			const bool IsIconicMatches = (pDataStruct->IsWindowIconic == IsWindowIconic);
 			pDataStruct->IsWindowIconic = IsWindowIconic;
@@ -542,24 +578,31 @@ LRESULT CALLBACK WndProc::Handler(HWND hWnd, UINT Msg, WPARAM wParam, LPARAM lPa
 		// Special handling for iconic state to prevent issues with some games
 		if (pDataStruct->IsDirectDraw && IsIconic(hWnd))
 		{
-			// Some games require filtering this when iconic, other games require this message to see when the window is activated
-			if (pDataStruct->DirectXVersion <= 4)
-			{
-				LOG_LIMIT(3, __FUNCTION__ << " Warning: filtering WM_ACTIVATE when iconic: " << LOWORD(wParam));
-				LRESULT lr = DefWndProc(hWnd, Msg, wParam, lParam);
+			const UINT activateState = LOWORD(wParam);
+			const bool isActivating = (activateState == WA_ACTIVE || activateState == WA_CLICKACTIVE);
+			const bool filterMessage = (pDataStruct->DirectXVersion <= 4);
 
-				if (LOWORD(wParam) == WA_ACTIVE || LOWORD(wParam) == WA_CLICKACTIVE)
+			if (filterMessage)
+			{
+				LOG_LIMIT(3, __FUNCTION__ << " Warning: filtering WM_ACTIVATE when iconic. Active: " << activateState);
+			}
+
+			if (filterMessage || isActivating)
+			{
+				if (isActivating)
 				{
-					PostMessage(hWnd, WM_APP_RESTORE_D3D9_DEVICE, (WPARAM)hWnd, WM_MAKE_KEY(hWnd, hWnd));
+					ShowWindowAsync(hWnd, SW_RESTORE);
 				}
 
-				return lr;
-			}
-			else if (LOWORD(wParam) == WA_ACTIVE || LOWORD(wParam) == WA_CLICKACTIVE)
-			{
-				LRESULT lr = CallWndProc(pWndProc, hWnd, Msg, wParam, lParam);
+				LRESULT lr = filterMessage
+					? DefWndProc(hWnd, Msg, wParam, lParam)
+					: CallWndProc(pWndProc, hWnd, Msg, wParam, lParam);
 
-				PostMessage(hWnd, WM_APP_RESTORE_D3D9_DEVICE, (WPARAM)hWnd, WM_MAKE_KEY(hWnd, hWnd));
+				if (isActivating)
+				{
+					LOG_LIMIT(3, __FUNCTION__ << " Attempting to activating device window.");
+					PostMessage(hWnd, WM_APP_RESTORE_D3D9_DEVICE, (WPARAM)hWnd, WM_MAKE_KEY(hWnd, hWnd));
+				}
 
 				return lr;
 			}

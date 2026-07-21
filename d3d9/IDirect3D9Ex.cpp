@@ -1045,6 +1045,12 @@ void m_IDirect3D9Ex::AdjustWindowSize(HMONITOR hMonitor, HWND hWnd, LONG display
 		return;
 	}
 
+	// Get window style
+	const LONG lOrgStyle = GetWindowLong(hWnd, GWL_STYLE);
+	LONG lStyle = lOrgStyle;
+	LONG lExStyle = GetWindowLong(hWnd, GWL_EXSTYLE);
+	const BOOL HasMenu = (GetMenu(hWnd) != NULL);
+
 	// Bring the window to top
 	if (hWnd != GetForegroundWindow() && hWnd != GetFocus() && hWnd != GetActiveWindow())
 	{
@@ -1052,6 +1058,11 @@ void m_IDirect3D9Ex::AdjustWindowSize(HMONITOR hMonitor, HWND hWnd, LONG display
 		SetWindowPos(hWnd, HWND_TOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
 		// Set not topmost
 		SetWindowPos(hWnd, HWND_NOTOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
+		// Set window active
+		if (lOrgStyle & WS_VISIBLE)
+		{
+			SetActiveWindow(hWnd);
+		}
 	}
 
 	// Verify monitor handle
@@ -1068,12 +1079,6 @@ void m_IDirect3D9Ex::AdjustWindowSize(HMONITOR hMonitor, HWND hWnd, LONG display
 	Utils::GetScreenClientRect(hMonitor, screenClientRect);
 	LONG screenClientWidth = screenClientRect.right - screenClientRect.left;
 	LONG screenClientHeight = screenClientRect.bottom - screenClientRect.top;
-
-	// Get window style
-	LONG lOrgStyle = GetWindowLong(hWnd, GWL_STYLE);
-	LONG lStyle = lOrgStyle;
-	LONG lExStyle = GetWindowLong(hWnd, GWL_EXSTYLE);
-	BOOL HasMenu = (GetMenu(hWnd) != NULL);
 
 	// Set window style
 	bool clientWidthOverlap = false, clientHeightOverlap = false;

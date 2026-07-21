@@ -3065,18 +3065,29 @@ bool m_IDirectDrawX::CheckD9Device(char* FunctionName)
 	}
 
 	// Check for delay while resolution switching
-	if (WndProc::SwitchingResolution)
+	if (WndProc::SwitchingResolution && TestD3D9CooperativeLevel() == D3DERR_DEVICELOST)
 	{
-		for (int attempts = 0; attempts < 20; ++attempts)
+		// Causes slow alt+tab response
+		/*for (int attempts = 0; attempts < 20; ++attempts)
 		{
 			if (TestD3D9CooperativeLevel() != D3DERR_DEVICELOST)
 			{
 				break;
 			}
 			Sleep(500);
-		}
+		}*/
 	}
 	WndProc::SwitchingResolution = false;
+
+	// Try to restore the device
+	if (IsDeviceLost && TestD3D9CooperativeLevel() == D3DERR_DEVICENOTRESET)
+	{
+		ResetD9Device();
+		if (!d3d9Device)
+		{
+			return false;
+		}
+	}
 
 	return true;
 }
@@ -3721,7 +3732,7 @@ HRESULT m_IDirectDrawX::ResetD9Device()
 	// Check for device interface
 	if (!d3d9Device)
 	{
-		return DDERR_WRONGMODE;
+		return DD_OK;
 	}
 
 	// Check if device is ready to be restored
@@ -3730,22 +3741,14 @@ HRESULT m_IDirectDrawX::ResetD9Device()
 	{
 	case DD_OK:
 		WndProc::SwitchingResolution = false;
-		return hr;
+		return DD_OK;
 
 	default:
 		LOG_LIMIT(100, __FUNCTION__ << " Error: TestCooperativeLevel = " << (D3DERR)hr);
 		return DDERR_WRONGMODE;
 
 	case D3DERR_DEVICELOST:
-		if (HWND hWnd = GetHwnd();
-			!IsIconic(hWnd) && hWnd == GetForegroundWindow())
-		{
-			return DDERR_WRONGMODE;
-		}
-		else
-		{
-			return DDERR_SURFACELOST;
-		}
+		return DDERR_SURFACELOST;
 
 	case D3DERR_DEVICENOTRESET:
 		break;
@@ -5687,12 +5690,12 @@ bool m_IDirectDrawX::CheckDirectDrawXInterface(void* pInterface)
 	return false;
 }
 
-void m_IDirectDrawX::TriggerDeviceReset(HWND hWnd)
+HRESULT m_IDirectDrawX::TriggerDeviceReset(HWND hWnd)
 {
 	// If incorrect param or incorrect device
 	if (!IsExclusiveMode() || !CreationInterface || hWnd != presParams.hDeviceWindow || !IsWindow(DisplayMode.hWnd))
 	{
-		return;
+		return DD_OK;
 	}
 
 	ScopedCriticalSection ThreadLockDD(DdrawWrapper::GetDDCriticalSection());
@@ -5702,9 +5705,11 @@ void m_IDirectDrawX::TriggerDeviceReset(HWND hWnd)
 	{
 		if (pDDraw == CreationInterface)
 		{
-			pDDraw->ResetD9Device();
+			return pDDraw->ResetD9Device();
 		}
 	}
+
+	return DD_OK;
 }
 
 void m_IDirectDrawX::TriggerDeviceRelease(HWND hWnd)

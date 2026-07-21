@@ -994,7 +994,7 @@ void m_IDirect3D9Ex::AdjustWindowStyle(HWND hWnd, bool IsDirectDrawDevice, bool 
 	// Ensure visibility before frame change
 	if (IsDirectDrawDevice && !IsWindowVisible(hWnd))
 	{
-		ShowWindow(hWnd, SW_SHOWNA);
+		ShowWindowAsync(hWnd, SW_SHOWNA);
 	}
 
 	// Check if window is minimized
@@ -1048,7 +1048,10 @@ void m_IDirect3D9Ex::AdjustWindowSize(HMONITOR hMonitor, HWND hWnd, LONG display
 	// Bring the window to top
 	if (hWnd != GetForegroundWindow() && hWnd != GetFocus() && hWnd != GetActiveWindow())
 	{
-		BringWindowToTop(hWnd);
+		// Set topmost
+		SetWindowPos(hWnd, HWND_TOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
+		// Set not topmost
+		SetWindowPos(hWnd, HWND_NOTOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
 	}
 
 	// Verify monitor handle

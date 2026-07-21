@@ -420,7 +420,7 @@ void ConvertDeviceDesc(D3DDEVICEDESC& Desc, const D3DDEVICEDESC7& Desc7)
 	// Desc.dwVertexProcessingCaps = Desc7.dwVertexProcessingCaps;
 }
 
-void ConvertDeviceDesc(D3DDEVICEDESC7& Desc7, const D3DCAPS9& Caps9)
+void ConvertDeviceDesc(D3DDEVICEDESC7& Desc7, const D3DCAPS9& Caps9, const CLSID* guid, DWORD DirectXVersion)
 {
 	// Initialize the output structure
 	ZeroMemory(&Desc7, sizeof(D3DDEVICEDESC7));
@@ -612,17 +612,16 @@ void ConvertDeviceDesc(D3DDEVICEDESC7& Desc7, const D3DCAPS9& Caps9)
 		D3DPTEXTURECAPS_TRANSPARENCY |
 		D3DPTEXTURECAPS_BORDER |
 		D3DPTEXTURECAPS_COLORKEYBLEND |
-		((Caps9.TextureCaps & D3DPTEXTURECAPS_POW2) ? D3DPTEXTURECAPS_POW2 : D3DPTEXTURECAPS_POW2 | D3DPTEXTURECAPS_NONPOW2CONDITIONAL) |
+		D3DPTEXTURECAPS_POW2 |
+		D3DPTEXTURECAPS_NONPOW2CONDITIONAL |
 		(Caps9.TextureCaps &
 			(D3DPTEXTURECAPS_PERSPECTIVE |
 			D3DPTEXTURECAPS_ALPHA |
 			//D3DPTEXTURECAPS_SQUAREONLY |
 			D3DPTEXTURECAPS_TEXREPEATNOTSCALEDBYSIZE |
 			D3DPTEXTURECAPS_ALPHAPALETTE |
-			D3DPTEXTURECAPS_NONPOW2CONDITIONAL |
 			D3DPTEXTURECAPS_PROJECTED /*|
 			D3DPTEXTURECAPS_CUBEMAP*/));
-	Desc7.dpcLineCaps.dwTextureCaps = m_IDirect3D9Ex::AdjustPOW2Caps(Desc7.dpcLineCaps.dwTextureCaps);
 	Desc7.dpcLineCaps.dwTextureFilterCaps =
 		D3DPTFILTERCAPS_NEAREST |
 		D3DPTFILTERCAPS_LINEAR |
@@ -660,9 +659,6 @@ void ConvertDeviceDesc(D3DDEVICEDESC7& Desc7, const D3DCAPS9& Caps9)
 	Desc7.dpcLineCaps.dwStippleWidth = 0;
 	Desc7.dpcLineCaps.dwStippleHeight = 0;
 
-	// Triangle capabilities (same as line caps)
-	Desc7.dpcTriCaps = Desc7.dpcLineCaps;
-
 	// General settings
 	Desc7.dwMinTextureWidth = (Caps9.MaxTextureWidth) ? 1 : 0;
 	Desc7.dwMinTextureHeight = (Caps9.MaxTextureHeight) ? 1 : 0;
@@ -683,11 +679,27 @@ void ConvertDeviceDesc(D3DDEVICEDESC7& Desc7, const D3DCAPS9& Caps9)
 	Desc7.wMaxUserClipPlanes = (WORD)min(Caps9.MaxUserClipPlanes, MaxClipPlaneIndex);
 	Desc7.wMaxVertexBlendMatrices = (WORD)min(Caps9.MaxVertexBlendMatrices, USHRT_MAX);
 
+	// Get device type
+	const DWORD DeviceType =
+		guid == nullptr ? Caps9.DeviceType :
+		*guid == IID_IDirect3DRampDevice ? D3DDEVTYPE_RAMP :
+		*guid == IID_IDirect3DRGBDevice ? D3DDEVTYPE_REF :
+		*guid == IID_IDirect3DHALDevice ? D3DDEVTYPE_HAL :
+		*guid == IID_IDirect3DTnLHalDevice ? D3DDEVTYPE_TNLHAL :
+		Caps9.DeviceType;
+
 	// Specific settings
-	switch ((DWORD)Caps9.DeviceType)
+	switch (DeviceType)
 	{
 	case D3DDEVTYPE_RAMP:
 		Desc7.deviceGUID = IID_IDirect3DRampDevice;
+		if (DirectXVersion < 7)
+		{
+			Desc7.dpcLineCaps.dwTextureCaps &=
+				~D3DPTEXTURECAPS_POW2 &
+				~D3DPTEXTURECAPS_NONPOW2CONDITIONAL &
+				~D3DPTEXTURECAPS_PERSPECTIVE;
+		}
 		Desc7.dwDevCaps &= ~(D3DDEVCAPS_HWRASTERIZATION | D3DDEVCAPS_HWTRANSFORMANDLIGHT);
 		Desc7.dwDeviceRenderBitDepth = DDBD_8 | DDBD_16 | DDBD_24 | DDBD_32;
 		Desc7.dwDeviceZBufferBitDepth = DDBD_16 | DDBD_24;
@@ -696,6 +708,13 @@ void ConvertDeviceDesc(D3DDEVICEDESC7& Desc7, const D3DCAPS9& Caps9)
 	default:
 	case D3DDEVTYPE_REF:
 		Desc7.deviceGUID = IID_IDirect3DRGBDevice;
+		if (DirectXVersion < 7)
+		{
+			Desc7.dpcLineCaps.dwTextureCaps &=
+				~D3DPTEXTURECAPS_POW2 &
+				~D3DPTEXTURECAPS_NONPOW2CONDITIONAL &
+				~D3DPTEXTURECAPS_PERSPECTIVE;
+		}
 		Desc7.dwDevCaps &= ~(D3DDEVCAPS_HWRASTERIZATION | D3DDEVCAPS_HWTRANSFORMANDLIGHT);
 		Desc7.dwDeviceRenderBitDepth = DDBD_8 | DDBD_16 | DDBD_24 | DDBD_32;
 		Desc7.dwDeviceZBufferBitDepth = DDBD_16 | DDBD_24;
@@ -716,6 +735,12 @@ void ConvertDeviceDesc(D3DDEVICEDESC7& Desc7, const D3DCAPS9& Caps9)
 		Desc7.dwDeviceZBufferBitDepth = DDBD_16 | DDBD_24;
 		break;
 	}
+
+	// Handle POW2 caps config
+	Desc7.dpcLineCaps.dwTextureCaps = m_IDirect3D9Ex::AdjustPOW2Caps(Desc7.dpcLineCaps.dwTextureCaps);
+
+	// Triangle capabilities (same as line caps)
+	Desc7.dpcTriCaps = Desc7.dpcLineCaps;
 }
 
 void ConvertLVertex(DXLVERTEX7* lFVF7, const DXLVERTEX9* lFVF9, DWORD NumVertices)

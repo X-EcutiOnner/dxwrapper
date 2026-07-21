@@ -934,7 +934,7 @@ HRESULT m_IDirect3DX::EnumDevices7(LPD3DENUMDEVICESCALLBACK7 lpEnumDevicesCallba
 			// Convert device desc
 			D3DDEVICEDESC7 DeviceDesc7;
 			Caps9.DeviceType = Type;
-			ConvertDeviceDesc(DeviceDesc7, Caps9);
+			ConvertDeviceDesc(DeviceDesc7, Caps9, nullptr, DirectXVersion);
 			DeviceDesc7.dwDeviceZBufferBitDepth = D9Cache.dwDeviceZBufferBitDepth;
 
 			LPSTR lpDescription = nullptr, lpName = nullptr;
@@ -984,7 +984,7 @@ HRESULT m_IDirect3DX::EnumDevices7(LPD3DENUMDEVICESCALLBACK7 lpEnumDevicesCallba
 
 				// Get D3DSWDevDesc data (D3DDEVTYPE_REF)
 				Caps9.DeviceType = D3DDEVTYPE_REF;
-				ConvertDeviceDesc(DeviceDesc7, Caps9);
+				ConvertDeviceDesc(DeviceDesc7, Caps9, nullptr, DirectXVersion);
 				ConvertDeviceDesc(D3DSWDevDesc, DeviceDesc7);
 
 				// Special handling for Ramp

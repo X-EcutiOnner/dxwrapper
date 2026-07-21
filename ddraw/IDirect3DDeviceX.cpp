@@ -164,7 +164,7 @@ HRESULT m_IDirect3DDeviceX::Initialize(LPDIRECT3D lpd3d, LPGUID lpGUID, LPD3DDEV
 	return GetProxyInterfaceV1()->Initialize(lpd3d, lpGUID, lpd3ddvdesc);
 }
 
-HRESULT m_IDirect3DDeviceX::GetCaps(LPD3DDEVICEDESC lpD3DHWDevDesc, LPD3DDEVICEDESC lpD3DHELDevDesc)
+HRESULT m_IDirect3DDeviceX::GetCaps(LPD3DDEVICEDESC lpD3DHWDevDesc, LPD3DDEVICEDESC lpD3DHELDevDesc, DWORD DirectXVersion)
 {
 	Logging::LogDebug() << __FUNCTION__ << " (" << this << ")";
 
@@ -179,7 +179,7 @@ HRESULT m_IDirect3DDeviceX::GetCaps(LPD3DDEVICEDESC lpD3DHWDevDesc, LPD3DDEVICED
 		}
 
 		D3DDEVICEDESC7 D3DDevDesc;
-		HRESULT hr = GetCaps(&D3DDevDesc);
+		HRESULT hr = GetCaps(&D3DDevDesc, DirectXVersion);
 
 		if (SUCCEEDED(hr))
 		{
@@ -4073,7 +4073,7 @@ HRESULT m_IDirect3DDeviceX::ValidateDevice(LPDWORD lpdwPasses)
 // IDirect3DDevice v7 functions
 // ******************************
 
-HRESULT m_IDirect3DDeviceX::GetCaps(LPD3DDEVICEDESC7 lpD3DDevDesc)
+HRESULT m_IDirect3DDeviceX::GetCaps(LPD3DDEVICEDESC7 lpD3DDevDesc, DWORD DirectXVersion)
 {
 	Logging::LogDebug() << __FUNCTION__ << " (" << this << ")";
 
@@ -4090,7 +4090,7 @@ HRESULT m_IDirect3DDeviceX::GetCaps(LPD3DDEVICEDESC7 lpD3DDevDesc)
 			return DDERR_INVALIDOBJECT;
 		}
 
-		ConvertDeviceDesc(*lpD3DDevDesc, Caps9);
+		ConvertDeviceDesc(*lpD3DDevDesc, Caps9, &ClassID, DirectXVersion);
 
 		return D3D_OK;
 	}

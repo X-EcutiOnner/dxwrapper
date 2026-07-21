@@ -62,7 +62,7 @@ HRESULT m_IDirect3DDevice::GetCaps(LPD3DDEVICEDESC a, LPD3DDEVICEDESC b)
 	{
 		return DDERR_INVALIDOBJECT;
 	}
-	return ProxyInterface->GetCaps(a, b);
+	return ProxyInterface->GetCaps(a, b, DirectXVersion);
 }
 
 HRESULT m_IDirect3DDevice::SwapTextureHandles(LPDIRECT3DTEXTURE a, LPDIRECT3DTEXTURE b)

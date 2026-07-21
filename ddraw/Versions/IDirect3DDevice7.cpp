@@ -53,7 +53,7 @@ HRESULT m_IDirect3DDevice7::GetCaps(LPD3DDEVICEDESC7 a)
 	{
 		return DDERR_INVALIDOBJECT;
 	}
-	return ProxyInterface->GetCaps(a);
+	return ProxyInterface->GetCaps(a, DirectXVersion);
 }
 
 HRESULT m_IDirect3DDevice7::EnumTextureFormats(LPD3DENUMPIXELFORMATSCALLBACK a, LPVOID b)

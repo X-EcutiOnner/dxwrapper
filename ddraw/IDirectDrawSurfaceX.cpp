@@ -5771,7 +5771,7 @@ void m_IDirectDrawSurfaceX::ReleaseD9Surface(bool BackupData, bool ResetSurface,
 void m_IDirectDrawSurfaceX::ReleaseD9AuxiliarySurfaces(bool ResetSurface)
 {
 	// Release d3d9 shadow surface when surface is released
-	if (surface.Shadow && !surface.Surface)
+	if (surface.Shadow && (!ResetSurface || !surface.Surface))
 	{
 		Logging::LogDebug() << __FUNCTION__ << " Releasing Direct3D9 surface";
 		ULONG ref = surface.Shadow->Release();

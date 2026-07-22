@@ -104,7 +104,7 @@ HRESULT WINAPI CoGetClassObjectHandle(REFCLSID rclsid, DWORD dwClsContext, LPVOI
 #ifdef DDRAW
 	if (Config.Dd7to9)
 	{
-		if (rclsid == CLSID_DirectDraw || rclsid == CLSID_DirectDraw7 || rclsid == CLSID_DirectDrawClipper)
+		if (rclsid == CLSID_DirectDraw || rclsid == CLSID_DirectDraw7 || rclsid == CLSID_DirectDrawClipper || rclsid == CLSID_DirectDrawFactory)
 		{
 			LOG_LIMIT(3, __FUNCTION__ " Wrapping: " << rclsid << " -> " << riid);
 
@@ -181,7 +181,7 @@ HRESULT WINAPI CoGetClassObjectHandle(REFCLSID rclsid, DWORD dwClsContext, LPVOI
 #ifdef DDRAW
 	if (Config.EnableDdrawWrapper)
 	{
-		if (rclsid == CLSID_DirectDraw || rclsid == CLSID_DirectDraw7 || rclsid == CLSID_DirectDrawClipper)
+		if (rclsid == CLSID_DirectDraw || rclsid == CLSID_DirectDraw7 || rclsid == CLSID_DirectDrawClipper || rclsid == CLSID_DirectDrawFactory)
 		{
 			LOG_LIMIT(3, __FUNCTION__ " Wrapping: " << rclsid << " -> " << riid);
 
@@ -315,6 +315,20 @@ HRESULT WINAPI CoCreateInstanceHandle(REFCLSID rclsid, LPUNKNOWN pUnkOuter, DWOR
 			pDirectDrawClipper->Release();
 			return hr;
 		}
+		else if (rclsid == CLSID_DirectDrawFactory)
+		{
+			LOG_LIMIT(3, __FUNCTION__ " Wrapping: " << rclsid << " -> " << riid);
+
+			m_IDirectDrawFactory* pDirectDrawFactory = new (std::nothrow) m_IDirectDrawFactory(nullptr);
+			if (!pDirectDrawFactory)
+			{
+				return E_OUTOFMEMORY;
+			}
+
+			HRESULT hr = pDirectDrawFactory->QueryInterface(riid, ppv);
+			pDirectDrawFactory->Release();
+			return hr;
+		}
 	}
 #endif
 
@@ -427,6 +441,21 @@ HRESULT WINAPI CoCreateInstanceHandle(REFCLSID rclsid, LPUNKNOWN pUnkOuter, DWOR
 
 			hr = pDirectDrawClipper->QueryInterface(riid, ppv);
 			pDirectDrawClipper->Release();
+			return hr;
+		}
+		else if (rclsid == CLSID_DirectDrawFactory)
+		{
+			LOG_LIMIT(3, __FUNCTION__ " Wrapping: " << rclsid << " -> " << riid);
+
+			m_IDirectDrawFactory* pDirectDrawFactory = new (std::nothrow) m_IDirectDrawFactory(reinterpret_cast<IDirectDrawFactory*>(*ppv));
+			if (!pDirectDrawFactory)
+			{
+				(reinterpret_cast<IDirectDrawFactory*>(*ppv))->Release();
+				return E_OUTOFMEMORY;
+			}
+
+			hr = pDirectDrawFactory->QueryInterface(riid, ppv);
+			pDirectDrawFactory->Release();
 			return hr;
 		}
 	}

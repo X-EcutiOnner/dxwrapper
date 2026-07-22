@@ -63,6 +63,18 @@ public:
 				wrapper->Release();
 				return hr;
 			}
+			else if (ClassID == CLSID_DirectDrawFactory)
+			{
+				m_IDirectDrawFactory* wrapper = new (std::nothrow) m_IDirectDrawFactory(nullptr);
+				if (!wrapper)
+				{
+					return E_OUTOFMEMORY;
+				}
+
+				HRESULT hr = wrapper->QueryInterface(riid, ppvObject);
+				wrapper->Release();
+				return hr;
+			}
 			else
 			{
 				return CLASS_E_CLASSNOTAVAILABLE;
@@ -101,6 +113,26 @@ public:
 			}
 
 			m_IDirectDrawClipper* wrapper = new (std::nothrow) m_IDirectDrawClipper(proxyObject);
+			if (!wrapper)
+			{
+				proxyObject->Release();
+				return E_OUTOFMEMORY;
+			}
+
+			HRESULT hr = wrapper->QueryInterface(riid, ppvObject);
+			wrapper->Release();
+			return hr;
+		}
+		else if (ClassID == CLSID_DirectDrawFactory)
+		{
+			IDirectDrawFactory* proxyObject = nullptr;
+			HRESULT proxyHr = m_dinput8Factory->CreateInstance(pUnkOuter, riid, reinterpret_cast<void**>(&proxyObject));
+			if (FAILED(proxyHr))
+			{
+				return proxyHr;
+			}
+
+			m_IDirectDrawFactory* wrapper = new (std::nothrow) m_IDirectDrawFactory(proxyObject);
 			if (!wrapper)
 			{
 				proxyObject->Release();

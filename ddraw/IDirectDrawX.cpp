@@ -2309,6 +2309,7 @@ HRESULT m_IDirectDrawX::RestoreAllSurfaces()
 			if (d3d9Device)
 			{
 				ScopedCriticalSection ThreadLockDD(DdrawWrapper::GetDDCriticalSection());
+
 				if (FAILED(ResetD9Device()))
 				{
 					return DDERR_WRONGMODE;

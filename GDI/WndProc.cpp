@@ -451,57 +451,32 @@ LRESULT CALLBACK WndProc::Handler(HWND hWnd, UINT Msg, WPARAM wParam, LPARAM lPa
 		}
 		break;
 
-	case WM_APP_RESTORE_D3D9_DEVICE:
+	case WM_APP_RESET_D3D9_DEVICE:
 		if (WM_MAKE_KEY(hWnd, wParam) == lParam)
 		{
-			LOG_LIMIT(3, __FUNCTION__ << " Activating device window. Iconic: " << IsIconic(hWnd));
+			LOG_LIMIT(3, __FUNCTION__ << " Handling device window activation. Iconic: " << IsIconic(hWnd));
 
 			// Restore window
 			if (IsIconic(hWnd))
 			{
-				LOG_LIMIT(3, __FUNCTION__ << " Activating device window: " << hWnd);
+				LOG_LIMIT(3, __FUNCTION__ << " Restoring iconic window: " << hWnd);
 				ShowWindow(hWnd, SW_RESTORE);
 			}
 
-			// Restore DirectDraw device once restored
+			// Reset device once restored
 			if (!IsIconic(hWnd))
 			{
 				LOG_LIMIT(3, __FUNCTION__ << " Attempting to reset device.");
+
 				if (m_IDirectDrawX::TriggerDeviceReset(hWnd) == DDERR_SURFACELOST)
 				{
-					// Force Windows to recalculate window state
-					ShowWindow(hWnd, SW_SHOW);
+					LOG_LIMIT(3, __FUNCTION__ << " Reset failed because device is still lost!");
 
-					// Bring it to the foreground
-					HWND fgWnd = GetForegroundWindow();
-
-					DWORD currentThread = GetCurrentThreadId();
-					DWORD foregroundThread = GetWindowThreadProcessId(fgWnd, nullptr);
-
-					BOOL attached = FALSE;
-
-					if (currentThread != foregroundThread)
-					{
-						attached = AttachThreadInput(currentThread, foregroundThread, TRUE);
-					}
-
-					BringWindowToTop(hWnd);
-					SetForegroundWindow(hWnd);
-					SetActiveWindow(hWnd);
-					SetFocus(hWnd);
-
-					if (attached)
-					{
-						AttachThreadInput(currentThread, foregroundThread, FALSE);
-					}
-
-					// Force a non-client/window update
-					SetWindowPos(hWnd, HWND_TOP, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_SHOWWINDOW | SWP_NOACTIVATE);
-
-					// Force pending window messages to process
-					UpdateWindow(hWnd);
+					ShowWindow(hWnd, SW_MINIMIZE);
+					ShowWindow(hWnd, SW_RESTORE);
 				}
 			}
+
 			return 0;
 		}
 		break;
@@ -539,13 +514,13 @@ LRESULT CALLBACK WndProc::Handler(HWND hWnd, UINT Msg, WPARAM wParam, LPARAM lPa
 			static WPARAM IsActiveApp = pDataStruct->IsExclusiveMode && pDataStruct->DirectXVersion > 4 ? TRUE : 0xFFFF;
 
 			const bool IsDuplicateMessage = (IsActiveApp == wParam);
-			IsActiveApp = wParam;
 
 			if (IsDuplicateMessage || Config.DdrawFilterActivateApp)
 			{
 				LOG_LIMIT(3, __FUNCTION__ << " Warning: filtering " << (IsDuplicateMessage ? "duplicate " : "") << "WM_ACTIVATEAPP: " << wParam);
 				return 0;
 			}
+			IsActiveApp = wParam;
 		}
 		// Filter messages for loss of focus or minimize
 		if (Config.HideWindowFocusChanges && wParam == FALSE)
@@ -561,19 +536,17 @@ LRESULT CALLBACK WndProc::Handler(HWND hWnd, UINT Msg, WPARAM wParam, LPARAM lPa
 		// Filter duplicate messages when using DirectDraw
 		if (pDataStruct->IsDirectDraw)
 		{
-			const bool IsDuplicateMessage = (pDataStruct->IsWindowActive == wParam);
-			pDataStruct->IsWindowActive = wParam;
-
 			const BOOL IsWindowIconic = IsIconic(hWnd);
-
+			const bool IsDuplicateMessage = (pDataStruct->IsWindowActive == wParam);
 			const bool IsIconicMatches = (pDataStruct->IsWindowIconic == IsWindowIconic);
-			pDataStruct->IsWindowIconic = IsWindowIconic;
 
 			if (IsDuplicateMessage && IsIconicMatches)
 			{
 				LOG_LIMIT(3, __FUNCTION__ << " Warning: filtering duplicate WM_ACTIVATE: " << LOWORD(wParam) << " IsIconic: " << IsWindowIconic);
 				return DefWndProc(hWnd, Msg, wParam, lParam);
 			}
+			pDataStruct->IsWindowActive = wParam;
+			pDataStruct->IsWindowIconic = IsWindowIconic;
 		}
 		// Special handling for iconic state to prevent issues with some games
 		if (pDataStruct->IsDirectDraw && IsIconic(hWnd))
@@ -582,29 +555,20 @@ LRESULT CALLBACK WndProc::Handler(HWND hWnd, UINT Msg, WPARAM wParam, LPARAM lPa
 			const bool isActivating = (activateState == WA_ACTIVE || activateState == WA_CLICKACTIVE);
 			const bool filterMessage = (pDataStruct->DirectXVersion <= 4);
 
+			if (isActivating)
+			{
+				LOG_LIMIT(3, __FUNCTION__ << " Sending message to activate device window.");
+				PostMessage(hWnd, WM_APP_RESET_D3D9_DEVICE, (WPARAM)hWnd, WM_MAKE_KEY(hWnd, hWnd));
+			}
+
 			if (filterMessage)
 			{
 				LOG_LIMIT(3, __FUNCTION__ << " Warning: filtering WM_ACTIVATE when iconic. Active: " << activateState);
+				return DefWndProc(hWnd, Msg, wParam, lParam);
 			}
-
-			if (filterMessage || isActivating)
+			else
 			{
-				if (isActivating)
-				{
-					ShowWindowAsync(hWnd, SW_RESTORE);
-				}
-
-				LRESULT lr = filterMessage
-					? DefWndProc(hWnd, Msg, wParam, lParam)
-					: CallWndProc(pWndProc, hWnd, Msg, wParam, lParam);
-
-				if (isActivating)
-				{
-					LOG_LIMIT(3, __FUNCTION__ << " Attempting to activating device window.");
-					PostMessage(hWnd, WM_APP_RESTORE_D3D9_DEVICE, (WPARAM)hWnd, WM_MAKE_KEY(hWnd, hWnd));
-				}
-
-				return lr;
+				return CallWndProc(pWndProc, hWnd, Msg, wParam, lParam);;
 			}
 		}
 		// Filter messages for loss of focus or minimize

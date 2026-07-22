@@ -3077,12 +3077,15 @@ bool m_IDirectDrawX::CheckD9Device(char* FunctionName)
 			Sleep(500);
 		}*/
 	}
-	WndProc::SwitchingResolution = false;
+	//WndProc::SwitchingResolution = false;
 
 	// Try to restore the device
 	if (IsDeviceLost && TestD3D9CooperativeLevel() == D3DERR_DEVICENOTRESET)
 	{
+		ScopedCriticalSection ThreadLockDD(DdrawWrapper::GetDDCriticalSection());
+
 		ResetD9Device();
+
 		if (!d3d9Device)
 		{
 			return false;

@@ -951,6 +951,11 @@ void m_IDirect3DViewportX::ReleaseInterface()
 		return;
 	}
 
+	// Don't delete wrapper interface
+	SaveInterfaceAddress(WrapperInterface);
+	SaveInterfaceAddress(WrapperInterface2);
+	SaveInterfaceAddress(WrapperInterface3);
+
 	if (D3DInterface)
 	{
 		D3DInterface->ClearViewport(this);
@@ -975,11 +980,6 @@ void m_IDirect3DViewportX::ReleaseInterface()
 	{
 		entry->Release();
 	}
-
-	// Don't delete wrapper interface
-	SaveInterfaceAddress(WrapperInterface);
-	SaveInterfaceAddress(WrapperInterface2);
-	SaveInterfaceAddress(WrapperInterface3);
 }
 
 void* m_IDirect3DViewportX::GetWrapperInterfaceX(DWORD DirectXVersion)

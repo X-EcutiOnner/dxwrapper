@@ -1046,6 +1046,12 @@ void m_IDirect3DX::ReleaseInterface()
 		return;
 	}
 
+	// Don't delete wrapper interface
+	SaveInterfaceAddress(WrapperInterface);
+	SaveInterfaceAddress(WrapperInterface2);
+	SaveInterfaceAddress(WrapperInterface3);
+	SaveInterfaceAddress(WrapperInterface7);
+
 	// Release device
 	for (auto& entry : D3DDeviceList)
 	{
@@ -1075,12 +1081,6 @@ void m_IDirect3DX::ReleaseInterface()
 	{
 		entry->ClearD3D();
 	}
-
-	// Don't delete wrapper interface
-	SaveInterfaceAddress(WrapperInterface);
-	SaveInterfaceAddress(WrapperInterface2);
-	SaveInterfaceAddress(WrapperInterface3);
-	SaveInterfaceAddress(WrapperInterface7);
 }
 
 void* m_IDirect3DX::GetWrapperInterfaceX(DWORD DirectXVersion)

@@ -81,6 +81,7 @@ public:
 			}
 		}
 
+		// EnableDdrawWrapper
 		if (ClassID == CLSID_DirectDraw || ClassID == CLSID_DirectDraw7)
 		{
 			IDirectDraw7* proxyObject = nullptr;

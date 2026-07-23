@@ -349,6 +349,10 @@ void m_IDirect3DTextureX::ReleaseInterface()
 		return;
 	}
 
+	// Don't delete wrapper interface
+	SaveInterfaceAddress(WrapperInterface);
+	SaveInterfaceAddress(WrapperInterface2);
+
 	if (tHandle && parent3DSurface.Interface)
 	{
 		m_IDirectDrawX* ddrawParent = parent3DSurface.Interface->GetDDrawParent();
@@ -357,10 +361,6 @@ void m_IDirect3DTextureX::ReleaseInterface()
 			ddrawParent->ClearTextureHandle(tHandle);
 		}
 	}
-
-	// Don't delete wrapper interface
-	SaveInterfaceAddress(WrapperInterface);
-	SaveInterfaceAddress(WrapperInterface2);
 }
 
 void* m_IDirect3DTextureX::GetWrapperInterfaceX(DWORD DirectXVersion)

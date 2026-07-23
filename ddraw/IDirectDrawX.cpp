@@ -2636,12 +2636,19 @@ void m_IDirectDrawX::ReleaseInterface()
 		return;
 	}
 
-	ScopedCriticalSection ThreadLockDD(DdrawWrapper::GetDDCriticalSection());
+	// Don't delete wrapper interface
+	SaveInterfaceAddress(WrapperInterface);
+	SaveInterfaceAddress(WrapperInterface2);
+	SaveInterfaceAddress(WrapperInterface3);
+	SaveInterfaceAddress(WrapperInterface4);
+	SaveInterfaceAddress(WrapperInterface7);
 
 	if (g_hook)
 	{
 		UnhookWindowsHookEx(g_hook);
 	}
+
+	ScopedCriticalSection ThreadLockDD(DdrawWrapper::GetDDCriticalSection());
 
 	// Remove ddraw device
 	DDrawVector.erase(std::remove(DDrawVector.begin(), DDrawVector.end(), this), DDrawVector.end());
@@ -2806,13 +2813,6 @@ void m_IDirectDrawX::ReleaseInterface()
 		// Clean up dummy memory
 		m_IDirectDrawSurfaceX::CleanupDummySurface();
 	}
-
-	// Don't delete wrapper interface
-	SaveInterfaceAddress(WrapperInterface);
-	SaveInterfaceAddress(WrapperInterface2);
-	SaveInterfaceAddress(WrapperInterface3);
-	SaveInterfaceAddress(WrapperInterface4);
-	SaveInterfaceAddress(WrapperInterface7);
 }
 
 HRESULT m_IDirectDrawX::CheckInterface(char* FunctionName, bool CheckD3DDevice)

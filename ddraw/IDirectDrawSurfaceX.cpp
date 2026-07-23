@@ -4005,6 +4005,13 @@ void m_IDirectDrawSurfaceX::ReleaseInterface()
 		return;
 	}
 
+	// Don't delete wrapper interface
+	SaveInterfaceAddress(WrapperInterface, IsPrimaryOrBackBuffer());
+	SaveInterfaceAddress(WrapperInterface2, IsPrimaryOrBackBuffer());
+	SaveInterfaceAddress(WrapperInterface3, IsPrimaryOrBackBuffer());
+	SaveInterfaceAddress(WrapperInterface4, IsPrimaryOrBackBuffer());
+	SaveInterfaceAddress(WrapperInterface7, IsPrimaryOrBackBuffer());
+
 	ReleaseDirectDrawResources();
 
 	if (Config.Dd7to9)
@@ -4031,13 +4038,6 @@ void m_IDirectDrawSurfaceX::ReleaseInterface()
 		// Delete critical section last
 		DeleteCriticalSection(&ddscs);
 	}
-
-	// Don't delete wrapper interface
-	SaveInterfaceAddress(WrapperInterface, IsPrimaryOrBackBuffer());
-	SaveInterfaceAddress(WrapperInterface2, IsPrimaryOrBackBuffer());
-	SaveInterfaceAddress(WrapperInterface3, IsPrimaryOrBackBuffer());
-	SaveInterfaceAddress(WrapperInterface4, IsPrimaryOrBackBuffer());
-	SaveInterfaceAddress(WrapperInterface7, IsPrimaryOrBackBuffer());
 }
 
 ULONG m_IDirectDrawSurfaceX::AddRefRoot(LPDIRECTDRAWSURFACE7 WrapperAddress)

@@ -322,15 +322,15 @@ void m_IDirect3DMaterialX::ReleaseInterface()
 		return;
 	}
 
-	if (D3DInterface)
-	{
-		D3DInterface->ClearMaterial(this, mHandle);
-	}
-
 	// Don't delete wrapper interface
 	SaveInterfaceAddress(WrapperInterface);
 	SaveInterfaceAddress(WrapperInterface2);
 	SaveInterfaceAddress(WrapperInterface3);
+
+	if (D3DInterface)
+	{
+		D3DInterface->ClearMaterial(this, mHandle);
+	}
 }
 
 void* m_IDirect3DMaterialX::GetWrapperInterfaceX(DWORD DirectXVersion)

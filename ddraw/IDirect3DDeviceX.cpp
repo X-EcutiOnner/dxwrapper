@@ -5044,6 +5044,12 @@ void m_IDirect3DDeviceX::ReleaseInterface()
 		return;
 	}
 
+	// Don't delete wrapper interface
+	SaveInterfaceAddress(WrapperInterface);
+	SaveInterfaceAddress(WrapperInterface2);
+	SaveInterfaceAddress(WrapperInterface3);
+	SaveInterfaceAddress(WrapperInterface7);
+
 	if (AttachedSurface && lpAttachedSurfaceX)
 	{
 		lpAttachedSurfaceX->ReleaseRoot(AttachedSurface);
@@ -5074,12 +5080,6 @@ void m_IDirect3DDeviceX::ReleaseInterface()
 			lpViewportX->ClearD3DDevice(this);
 		}
 	}
-
-	// Don't delete wrapper interface
-	SaveInterfaceAddress(WrapperInterface);
-	SaveInterfaceAddress(WrapperInterface2);
-	SaveInterfaceAddress(WrapperInterface3);
-	SaveInterfaceAddress(WrapperInterface7);
 }
 
 HRESULT m_IDirect3DDeviceX::CheckInterface(char *FunctionName, bool CheckD3DDevice)

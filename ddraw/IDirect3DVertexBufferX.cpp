@@ -602,6 +602,10 @@ void m_IDirect3DVertexBufferX::ReleaseInterface()
 		return;
 	}
 
+	// Don't delete wrapper interface
+	SaveInterfaceAddress(WrapperInterface);
+	SaveInterfaceAddress(WrapperInterface7);
+
 	ReleaseD9Buffer(false, false);
 
 	if (ddrawParent)
@@ -613,10 +617,6 @@ void m_IDirect3DVertexBufferX::ReleaseInterface()
 	{
 		D3DInterface->ClearVertexBuffer(this);
 	}
-
-	// Don't delete wrapper interface
-	SaveInterfaceAddress(WrapperInterface);
-	SaveInterfaceAddress(WrapperInterface7);
 }
 
 HRESULT m_IDirect3DVertexBufferX::CheckInterface(char* FunctionName, bool CheckD3DDevice, bool CheckD3DVertexBuffer)

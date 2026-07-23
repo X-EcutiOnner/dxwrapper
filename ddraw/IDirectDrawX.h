@@ -21,6 +21,7 @@ private:
 
 	// Cached DirectDraw flags
 	const bool IsUsingEx = false;
+	bool CreatedByDDFactory = false;
 	bool Using3D = false;
 	const UINT AdapterIndex = D3DADAPTER_DEFAULT;
 
@@ -209,6 +210,7 @@ public:
 	void *GetWrapperInterfaceX(DWORD DirectXVersion);
 	ULONG AddRef(DWORD DirectXVersion);
 	ULONG Release(DWORD DirectXVersion);
+	void SetAsCreatedByDDFactory() { CreatedByDDFactory = true; }
 
 	// Direct3D interfaces
 	m_IDirect3DX** GetCurrentD3D() { return &D3DInterface; }

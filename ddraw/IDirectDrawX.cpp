@@ -180,7 +180,7 @@ HRESULT m_IDirectDrawX::QueryInterface(REFIID riid, LPVOID FAR * ppvObj, DWORD D
 
 	if (riid == GetWrapperType(DxVersion) || riid == IID_IUnknown)
 	{
-		if (DirectXVersion != 3 && riid == IID_IDirectDraw3)
+		if (!CreatedByDDFactory && DirectXVersion != 3 && riid == IID_IDirectDraw3)
 		{
 			LOG_LIMIT(100, __FUNCTION__ << " Query Not Implemented for " << riid << " from " << GetWrapperType(DirectXVersion));
 

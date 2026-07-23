@@ -6703,7 +6703,7 @@ void m_IDirect3DDeviceX::SetDrawStates(DWORD dwVertexTypeDesc, DWORD& dwFlags, D
 		}
 
 		// Texture alpha replaces; if no texture alpha, use vertex alpha.
-		if (DeviceStates.RenderState[D3DRENDERSTATE_TEXTUREMAPBLEND].State == D3DTBLEND_MODULATE && !DeviceStates.alphaOpSet)
+		if (DeviceStates.RenderState[D3DRENDERSTATE_TEXTUREMAPBLEND].State == D3DTBLEND_MODULATE && !DeviceStates.alphaOpSet && CurrentTextureSurfaceX[0])
 		{
 			if (CurrentTextureSurfaceX[0]->HasAlphaChannel(UsingColorKey))
 			{

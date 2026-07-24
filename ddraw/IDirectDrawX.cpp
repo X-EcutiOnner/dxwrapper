@@ -2196,48 +2196,40 @@ HRESULT m_IDirectDrawX::GetAvailableVidMem2(LPDDSCAPS2 lpDDSCaps2, LPDWORD lpdwT
 		DWORD AvailableMemory = 0;
 
 		// Get memory
-		if (lpDDSCaps2 && ((lpDDSCaps2->dwCaps == 0) ||
-			(lpDDSCaps2->dwCaps & (DDSCAPS_TEXTURE | DDSCAPS_PRIMARYSURFACE | DDSCAPS_OFFSCREENPLAIN | DDSCAPS_ZBUFFER)) ||		// Surface and Texture memory
-			(lpDDSCaps2->dwCaps & (DDSCAPS_VIDEOMEMORY | DDSCAPS_LOCALVIDMEM | DDSCAPS_3DDEVICE))))								// Video memory
+		if (!OpenD3DDDI(GetDC()) || !D3DDDIGetVideoMemory(TotalMemory, AvailableMemory))
 		{
-			if (!OpenD3DDDI(GetDC()) || !D3DDDIGetVideoMemory(TotalMemory, AvailableMemory))
+			if (d3d9Device)
 			{
-				if (d3d9Device)
-				{
-					AvailableMemory = d3d9Device->GetAvailableTextureMem();
-				}
+				AvailableMemory = d3d9Device->GetAvailableTextureMem();
 			}
-		}
-		// Get non-local video memory
-		else if (lpDDSCaps2 && (lpDDSCaps2->dwCaps & DDSCAPS_NONLOCALVIDMEM))
-		{
-			if (lpdwTotal)
-			{
-				*lpdwTotal = 0;
-			}
-			if (lpdwFree)
-			{
-				*lpdwFree = 0;
-			}
-			return DD_OK;
-		}
-		// Unknown memory type request
-		else
-		{
-			Logging::Log() << __FUNCTION__ << " Error: Unknown memory type.  dwCaps: " << ((lpDDSCaps2) ? (void*)lpDDSCaps2->dwCaps : nullptr);
-			return DDERR_INVALIDPARAMS;
 		}
 
-		// If memory cannot be found just return default memory
-		if (!TotalMemory)
-		{
-			TotalMemory = (AvailableMemory) ? AvailableMemory + MinUsedVidMemory : MaxVidMemory;
-		}
+		// Ajdust memory (fixes case where memory is null)
+		AdjustVidMemory(&TotalMemory, &AvailableMemory);
 
-		// If memory cannot be found just return default memory
-		if (!AvailableMemory)
+		// Set memory based on type
+		if (lpDDSCaps2)
 		{
-			AvailableMemory = TotalMemory - MinUsedVidMemory;
+			if (lpDDSCaps2->dwCaps & (DDSCAPS_TEXTURE | DDSCAPS_VIDEOMEMORY | DDSCAPS_VISIBLE | DDSCAPS_WRITEONLY | DDSCAPS_RESERVED2 | 0x1000000 | 0x2000000))
+			{
+				// Use full memory for these
+			}
+			else if (lpDDSCaps2->dwCaps & DDSCAPS_NONLOCALVIDMEM)
+			{
+				// Use partial memory for this
+				TotalMemory -= TotalMemory / 7;
+
+				// Adjust memory (fixes AvailableMemory)
+				AdjustVidMemory(&TotalMemory, &AvailableMemory);
+			}
+			else
+			{
+				// Use limited memory for this
+				TotalMemory /= 7;
+
+				// Adjust memory (fixes AvailableMemory)
+				AdjustVidMemory(&TotalMemory, &AvailableMemory);
+			}
 		}
 
 		// Set memory values
@@ -2249,9 +2241,6 @@ HRESULT m_IDirectDrawX::GetAvailableVidMem2(LPDDSCAPS2 lpDDSCaps2, LPDWORD lpdwT
 		{
 			*lpdwFree = AvailableMemory;
 		}
-
-		// Ajdust available memory
-		AdjustVidMemory(lpdwTotal, lpdwFree);
 
 		return DD_OK;
 	}

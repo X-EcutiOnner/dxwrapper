@@ -1330,11 +1330,13 @@ HRESULT m_IDirectDrawX::GetCaps(LPDDCAPS lpDDDriverCaps, LPDDCAPS lpDDHELCaps)
 		}
 		if (lpDDDriverCaps)
 		{
-			ConvertCaps(*lpDDDriverCaps, DriverCaps);
+			size_t size = min(lpDDDriverCaps->dwSize, DriverCaps.dwSize);
+			memcpy(lpDDDriverCaps, &DriverCaps, size);
 		}
 		if (lpDDHELCaps)
 		{
-			ConvertCaps(*lpDDHELCaps, HELCaps);
+			size_t size = min(lpDDHELCaps->dwSize, HELCaps.dwSize);
+			memcpy(lpDDHELCaps, &HELCaps, size);
 		}
 
 		return hr;

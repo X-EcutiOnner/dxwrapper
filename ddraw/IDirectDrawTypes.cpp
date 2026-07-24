@@ -600,24 +600,6 @@ void ConvertCaps(DDSCAPS2& Caps2, const DDSCAPS& Caps)
 	Caps2.dwVolumeDepth = 0;
 }
 
-void ConvertCaps(DDCAPS& Caps, const DDCAPS& Caps2)
-{
-	if ((Caps.dwSize != sizeof(DDCAPS_DX1) && Caps.dwSize != sizeof(DDCAPS_DX3) &&
-		Caps.dwSize != sizeof(DDCAPS_DX5) && Caps.dwSize != sizeof(DDCAPS_DX6) &&
-		Caps.dwSize != sizeof(DDCAPS_DX7)) || (Caps2.dwSize != sizeof(DDCAPS_DX1) &&
-		Caps2.dwSize != sizeof(DDCAPS_DX3) && Caps2.dwSize != sizeof(DDCAPS_DX5) &&
-		Caps2.dwSize != sizeof(DDCAPS_DX6) && Caps2.dwSize != sizeof(DDCAPS_DX7)))
-	{
-		LOG_LIMIT(100, __FUNCTION__ << " Error: Incorrect dwSize: " << Caps.dwSize << " " << Caps2.dwSize);
-		return;
-	}
-	DWORD Size = Caps.dwSize;
-	ZeroMemory(&Caps, Caps.dwSize);
-	Caps.dwSize = Size;
-	CopyMemory(&Caps, &Caps2, min(Caps.dwSize, Caps2.dwSize));
-	AdjustVidMemory(&Caps.dwVidMemTotal, &Caps.dwVidMemFree);
-}
-
 void ConvertCaps(DDCAPS& Caps7, D3DCAPS9& Caps9)
 {
 	// Note: dwVidMemTotal, dwVidMemFree and dwNumFourCCCodes are not part of D3DCAPS9 and need to be set separately

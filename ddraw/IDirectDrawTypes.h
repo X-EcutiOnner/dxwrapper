@@ -4,8 +4,8 @@
 
 class m_IDirectDrawX;
 
-static constexpr DWORD MaxVidMemory     = 2047 * 1024 * 1024;	// 2 GBs
-static constexpr DWORD MinUsedVidMemory = 8 * 1024;				// 8 KBs
+static constexpr DWORD MaxVidMemory     = INT32_MAX;	// Max 32bit signed
+static constexpr DWORD MinUsedVidMemory = 256;			// 256 bytes
 
 static constexpr D3DFORMAT D9DisplayFormat = D3DFMT_X8R8G8B8;
 
@@ -244,7 +244,6 @@ void ConvertDeviceIdentifier(DDDEVICEIDENTIFIER2& DeviceID2, const DDDEVICEIDENT
 void ConvertDeviceIdentifier(DDDEVICEIDENTIFIER2& DeviceID, const D3DADAPTER_IDENTIFIER9& Identifier9);
 void ConvertCaps(DDSCAPS& Caps, const DDSCAPS2& Caps2);
 void ConvertCaps(DDSCAPS2& Caps2, const DDSCAPS& Caps);
-void ConvertCaps(DDCAPS& Caps, const DDCAPS& Caps2);
 void ConvertCaps(DDCAPS& Caps7, D3DCAPS9& Caps9);
 void AdjustVidMemory(LPDWORD lpdwTotal, LPDWORD lpdwFree);
 DWORD GetByteAlignedWidth(DWORD Width, DWORD BitCount);

@@ -88,7 +88,11 @@ HRESULT m_IDirectDrawFactory::CreateDirectDraw(GUID * pGUID, HWND hWnd, DWORD dw
 
 		if (SUCCEEDED(hr) && ppDirectDraw)
 		{
-			reinterpret_cast<m_IDirectDrawX*>(*ppDirectDraw)->SetAsCreatedByDDFactory();
+			m_IDirectDrawX* pDirectDrawX = nullptr;
+			if (SUCCEEDED((*ppDirectDraw)->QueryInterface(IID_GetInterfaceX, reinterpret_cast<LPVOID*>(&pDirectDrawX))))
+			{
+				pDirectDrawX->SetAsCreatedByDDFactory();
+			}
 
 			hr = (*ppDirectDraw)->SetCooperativeLevel(hWnd, dwCoopLevelFlags);
 

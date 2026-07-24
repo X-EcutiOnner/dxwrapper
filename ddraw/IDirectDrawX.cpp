@@ -36,6 +36,9 @@ namespace {
 	// Default resolution
 	RECT LastWindowRect = {};
 
+	// Cached video memory by monitor index
+	std::unordered_map<UINT, DWORD> CachedVideoMemory;
+
 	// Exclusive mode settings
 	HMONITOR hMonitor = nullptr;
 	bool ExclusiveMode = false;
@@ -2196,11 +2199,47 @@ HRESULT m_IDirectDrawX::GetAvailableVidMem2(LPDDSCAPS2 lpDDSCaps2, LPDWORD lpdwT
 		DWORD AvailableMemory = 0;
 
 		// Get memory
-		if (!OpenD3DDDI(GetDC()) || !D3DDDIGetVideoMemory(TotalMemory, AvailableMemory))
+		if (d3d9Device)
 		{
-			if (d3d9Device)
+			TotalMemory = CachedVideoMemory[AdapterIndex];
+			AvailableMemory = d3d9Device->GetAvailableTextureMem();
+		}
+		else
+		{
+			// Get HDC
+			HDC hdc = GetDC();
+			HDC hdcMonitor = nullptr;
+			if (!hdc)
 			{
-				AvailableMemory = d3d9Device->GetAvailableTextureMem();
+				if (FindMonitorHandle(); hMonitor != nullptr)
+				{
+					MONITORINFOEX mi = {};
+					mi.cbSize = sizeof(mi);
+
+					if (GetMonitorInfo(hMonitor, &mi))
+					{
+						hdcMonitor = CreateDCA("DISPLAY", mi.szDevice, nullptr, nullptr);
+						hdc = hdcMonitor;
+					}
+				}
+			}
+
+			// Get memory from DDI
+			if (OpenD3DDDI(hdc) && D3DDDIGetVideoMemory(TotalMemory, AvailableMemory))
+			{
+				CachedVideoMemory[AdapterIndex] = TotalMemory;
+			}
+			else
+			{
+				TotalMemory = CachedVideoMemory[AdapterIndex];
+				AvailableMemory = TotalMemory;
+			}
+
+			// Close and delete HDC
+			if (hdcMonitor)
+			{
+				CloseD3DDDI();
+				DeleteDC(hdcMonitor);
 			}
 		}
 
@@ -3635,6 +3674,13 @@ HRESULT m_IDirectDrawX::CreateD9Device(char* FunctionName)
 	if (!(BehaviorFlags & D3DCREATE_FPU_PRESERVE))
 	{
 		LOG_ONCE(__FUNCTION__ << " Setting single precision FPU!");
+	}
+
+	// Get video memory at device creation
+	UINT AvailableMem = d3d9Device->GetAvailableTextureMem();
+	if (CachedVideoMemory[AdapterIndex] < AvailableMem)
+	{
+		CachedVideoMemory[AdapterIndex] = AvailableMem;
 	}
 
 	// Create dummy memory (2x larger)
